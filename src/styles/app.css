@@ -31,6 +31,7 @@ main{max-width:1180px}
 .theme-toggle{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);cursor:pointer;font-size:12px}
 .theme-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .mobile-nav-tools{display:none;order:5;width:100%;padding-top:4px}.mobile-nav-tools.open{display:none}
+.mobile-menu-account{display:none}
 .hero{position:relative;min-height:470px;margin:0 -16px;padding:90px 20px 50px;overflow:hidden;text-align:center;background:#101b2c}
 .hero-art{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,13,24,.25),#07101b 93%),radial-gradient(ellipse at 18% 72%,#ee3948 0 2%,transparent 20%),radial-gradient(ellipse at 80% 60%,#a41942 0 3%,transparent 22%),linear-gradient(110deg,transparent 23%,rgba(19,67,92,.8) 24% 28%,transparent 29% 42%,rgba(24,44,72,.9) 43% 48%,transparent 49%),linear-gradient(180deg,#0b2535 0 38%,#101522 39% 100%);opacity:.95}
 .hero-art:after{content:"";position:absolute;left:8%;right:8%;bottom:-10px;height:150px;background:linear-gradient(90deg,transparent 0 7%,#05070b 8% 12%,transparent 13% 25%,#05070b 26% 32%,transparent 33% 60%,#05070b 61% 66%,transparent 67% 84%,#05070b 85% 90%,transparent 91%);clip-path:polygon(0 100%,4% 30%,9% 55%,14% 12%,20% 62%,27% 40%,34% 72%,42% 26%,50% 62%,58% 34%,66% 70%,74% 15%,82% 55%,90% 30%,100% 62%,100% 100%)}
@@ -74,6 +75,10 @@ th{color:var(--cy);font-size:13px}td{font-size:14px}
   .nav nav{display:none;order:4;width:100%;flex-direction:column;gap:0;padding:8px 0}
   .nav nav.open{display:flex}
   .nav nav a{padding:11px 4px;white-space:normal}
+  .mobile-menu-account{display:grid;gap:6px;padding:8px 0 2px;border-top:1px solid var(--border);margin-top:4px}
+  .mobile-menu-action{display:block;width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);text-align:left;text-decoration:none;cursor:pointer}
+  .mobile-menu-action.login{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+  .mobile-menu-action:hover,.mobile-menu-action:focus-visible{border-color:var(--red)}
   .nav-actions{margin-left:0}
   .nav-actions .ghost{display:none}
   .nav-actions .theme-toggle{display:none}
