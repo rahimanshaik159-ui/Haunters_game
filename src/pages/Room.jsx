@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';import {useParams,Link,useNavigate} from 'react-router-dom';
-import {ref,onValue,update,set,remove,onDisconnect} from 'firebase/database';
+import {ref,onValue,update,set,remove,onDisconnect,runTransaction} from 'firebase/database';
 import {doc,setDoc,increment} from 'firebase/firestore';
 import {MapContainer,TileLayer,Circle,CircleMarker,Polyline,useMap} from 'react-leaflet';
 import {db,fs} from '../services/firebase';import {useUser} from '../App.jsx';import {cfg} from '../config';
@@ -10,12 +10,12 @@ function Follow({p}){const m=useMap();useEffect(()=>{if(p)m.setView([p.lat,p.lng
 export default function Room(){
  const {id}=useParams(),u=useUser(),nv=useNavigate();const [g,setG]=useState(undefined);
  useEffect(()=>onValue(ref(db,'games/'+id),s=>setG(s.val()),()=>setG(null)),[id]);
- useEffect(()=>{const r=ref(db,`games/${id}/players/${u.uid}/online`);set(r,true).catch(()=>{});onDisconnect(r).set(false).catch(()=>{});},[id]);
+ useEffect(()=>{if(g?.players?.[u.uid]?.alive===false)return;const r=ref(db,`games/${id}/players/${u.uid}/online`);set(r,true).catch(()=>{});onDisconnect(r).set(false).catch(()=>{});},[id,u.uid,g?.players?.[u.uid]?.alive]);
  if(g===undefined)return <p className="c">Loading…</p>;
  if(!g||!g.meta)return <div className="c"><p>Game not found.</p><Link to="/dashboard" className="btn">Back</Link></div>;
  const me=g.players?.[u.uid];if(!me)return <div className="c"><p>You are not in this game.</p><Link to={'/join?code='+id} className="btn">Join</Link></div>;
  const s=g.meta.status;
- return s==='waiting'?<Wait id={id} g={g} u={u} nv={nv}/>:s==='playing'?<Play id={id} g={g} u={u}/>:<Over id={id} g={g} u={u}/>;}
+ return s==='waiting'?<Wait id={id} g={g} u={u} nv={nv}/>:s==='playing'?(me.alive?<Play id={id} g={g} u={u}/>:<Spectator id={id} g={g} u={u}/>):<Over id={id} g={g} u={u}/>;}
 function Wait({id,g,u,nv}){const m=g.meta,ps=Object.entries(g.players||{}),host=m.host===u.uid,[msg,setMsg]=useState('');
  const link=`${cfg.siteUrl}${import.meta.env.BASE_URL.replace(/\/$/,'')}/join?code=${id}`;
  const start=async()=>{if(ps.length<2)return setMsg('Need at least 2 players.');if(m.haunters>=ps.length)return setMsg('Too many haunters for this player count.');
@@ -55,7 +55,8 @@ const cancel = async () => {
   {host&&<><button className="btn g" onClick={start}>Start Game</button> <button className="btn ghost" onClick={cancel}>Cancel game</button></>}{' '}
   {!host&&<button className="btn ghost" onClick={leave}>Leave</button>}</>;}
   function Play({id,g,u}){const m=g.meta,me=g.players[u.uid],[pos,setPos]=useState(null),[err,setErr]=useState(''),[now,setNow]=useState(Date.now()),[rt,setRt]=useState(null);
-  const posR=useRef(null),last=useRef(0),near=useRef({}),lastRt=useRef(0),gR=useRef(g),lastDamageFix=useRef(0),lastTargetTs=useRef({});gR.current=g;
+  const posR=useRef(null),last=useRef(0),lastRt=useRef(0),gR=useRef(g),lastDamageFix=useRef(0),holdTimer=useRef(null),holdTicker=useRef(null);const [targetId,setTargetId]=useState(null),[hold,setHold]=useState({active:false,progress:0,message:''}),[killNotice,setKillNotice]=useState('');
+  gR.current=g;
   useEffect(()=>{
   if(!navigator.geolocation){
    setErr('Geolocation unavailable.');
@@ -124,34 +125,6 @@ const cancel = async () => {
    }
 
 
-   // Count only new, fresh, accurate target GPS fixes.
-   if(self?.alive&&self.role==='haunter'&&accurateSelf){
-    for(const [k,o] of Object.entries(gg.players)){
-     if(o.role!=='civilian'||!o.alive||!o.ts)continue;
-
-     const targetFixAt=o.fixAt||o.ts;
-     if(n-targetFixAt>10000||(o.acc||99)>G.maxAcc){
-      near.current[k]=0;
-      continue;
-     }
-
-     if(targetFixAt===lastTargetTs.current[k])continue;
-     lastTargetTs.current[k]=targetFixAt;
-
-     if(dist(p,o)<=G.proximity){
-      near.current[k]=(near.current[k]||0)+1;
-
-      if(near.current[k]>=G.confirmTicks){
-       near.current[k]=0;
-       update(ref(db,`games/${id}/players/${k}`),
-        {alive:false,health:0,by:u.uid});
-      }
-     }else{
-      near.current[k]=0;
-     }
-    }
-   }
-
    // Preserve the host's game-end checks.
    if(mm.host===u.uid){
     const civ=Object.values(gg.players)
@@ -170,10 +143,18 @@ const cancel = async () => {
   return()=>clearInterval(t);
  },[id,u.uid]);
  const sec=elapsed(m,now),z=zoneAt(m,sec),zn=zoneAt(m,sec+nextShrink(m,sec)+1),civ=me.role==='civilian';
+ const validLocation=(p,n)=>Boolean(p&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&Number.isFinite(p.acc)&&p.acc<=G.killMaxAcc&&p.fixAt&&n-p.fixAt<=G.locationMaxAgeMs);
+ const candidates=Object.entries(g.players).filter(([k,o])=>k!==u.uid&&o.role==='civilian'&&o.alive&&validLocation(o,now)&&validLocation(pos,now)&&dist(pos,o)+pos.acc+o.acc<=G.killRange);
+ const target=candidates.find(([k])=>k===targetId)||candidates[0];
  const others=Object.entries(g.players).filter(([k,o])=>k!==u.uid&&o.alive&&o.pos!==0&&o.ts&&now-o.ts<15000&&pos&&dist(pos,o)<=G.proximity&&o.role===(civ?'haunter':'civilian')&&(civ||o.acc<=G.maxAcc*2));
  const alive=Object.values(g.players);const cl=alive.filter(x=>x.role==='civilian'&&x.alive).length;
  const danger=civ&&others[0];
  useEffect(()=>{if(danger&&pos&&Date.now()-lastRt.current>20000){lastRt.current=Date.now();route(pos,m.center).then(setRt);}if(!danger)setRt(null);},[!!danger]);
+ const releaseKill=()=>{if(holdTimer.current)clearTimeout(holdTimer.current);if(holdTicker.current)clearInterval(holdTicker.current);holdTimer.current=null;holdTicker.current=null;setHold({active:false,progress:0,message:hold.active?'Hold cancelled.':''});};
+ const validTarget=(id=targetId)=>{const p=posR.current,latest=gR.current.players?.[id],n=Date.now();return latest?.role==='civilian'&&latest.alive&&validLocation(p,n)&&validLocation(latest,n)&&dist(p,latest)+p.acc+latest.acc<=G.killRange;};
+ const finishKill=async(idToKill)=>{if(!validTarget(idToKill)){releaseKill();setKillNotice('Cancelled: target location is no longer reliable.');return;}const result=await runTransaction(ref(db,`games/${id}/players/${idToKill}`),p=>{if(!p||p.role!=='civilian'||p.alive!==true)return;const n=Date.now();if(!validLocation(p,n)||!validLocation(posR.current,n)||dist(posR.current,p)+posR.current.acc+p.acc>G.killRange)return;return {...p,alive:false,health:0,by:u.uid};});releaseKill();if(result.committed){setKillNotice('Civilian eliminated.');navigator.vibrate?.([80,40,80]);}else setKillNotice('Cancelled: target changed before elimination.');};
+ const startKill=()=>{if(!target||hold.active)return;const idToKill=target[0];setTargetId(idToKill);if(!validTarget(idToKill))return setKillNotice('GPS accuracy is too low for a 5 m elimination.');setKillNotice('');const started=Date.now();setHold({active:true,progress:0,message:'Holding… 3 seconds'});holdTicker.current=setInterval(()=>{const progress=Math.min(1,(Date.now()-started)/G.killHoldMs);if(!validTarget(idToKill)){releaseKill();setKillNotice('Cancelled: target moved or GPS became stale.');return;}setHold({active:true,progress,message:`Holding… ${Math.max(0,Math.ceil((G.killHoldMs-(Date.now()-started))/1000))} seconds`});},50);holdTimer.current=setTimeout(()=>finishKill(idToKill),G.killHoldMs);};
+ useEffect(()=>{const stop=()=>releaseKill();document.addEventListener('visibilitychange',stop);return()=>{document.removeEventListener('visibilitychange',stop);releaseKill();};},[]);
  if(!me.alive)return <div className="c card"><h2>You were eliminated 👻</h2><p>{me.health<=0?'Health depleted or caught.':''} Watch the game end or <Link to="/dashboard">leave</Link>.</p><p>Time left {fmt(Math.max(0,m.duration*60-sec))}</p></div>;
  const toC=pos?bearing(pos,m.center):0;
  return <><div className="hud"><div className="card">Role<br/><b style={{color:civ?'var(--cy)':'var(--red)'}}>{me.role.toUpperCase()}</b></div>
@@ -197,7 +178,7 @@ const cancel = async () => {
   Exit Game
 </button>
 </div>
-
+  {!civ&&<div className="kill-panel card"><h3>Hold to eliminate</h3>{candidates.length?<><div className="kill-targets">{candidates.map(([k,o])=><button type="button" className={target?.[0]===k?'selected':''} key={k} onClick={()=>{releaseKill();setTargetId(k);}}>{o.name||'Civilian'} · ~{Math.round(dist(pos,o))} m</button>)}</div><p>{target?.[1]?.name||'Civilian'} is within range. Hold for 3 seconds.</p><button type="button" className="kill-button" onPointerDown={startKill} onPointerUp={releaseKill} onPointerCancel={releaseKill} onPointerLeave={releaseKill} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!e.repeat){e.preventDefault();startKill();}}} onKeyUp={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();releaseKill();}}} disabled={!target||hold.active} aria-label={`Hold to eliminate ${target?.[1]?.name||'Civilian'}`}>KILL<span className="kill-progress" style={{transform:`scaleX(${hold.progress})`}}/></button>{hold.message&&<p className="kill-feedback">{hold.message}</p>}{killNotice&&<p className="kill-feedback">{killNotice}</p>}</>:<><p>No Civilian within 5 m.</p><p className="gps-note">Requires fresh GPS fixes with accuracy within {G.killMaxAcc} m. Phone GPS may not reliably distinguish 5 m.</p><button type="button" className="kill-button" disabled>KILL</button></>}</div>}
   <div className="bar"><i style={{width:(me.health??100)+'%'}}/></div><small>Health {me.health??100}%</small>
   {err&&<p className="warn">{err}</p>}{!pos&&!err&&<p>Waiting for GPS…</p>}
   {danger&&<p className="alert">⚠ Haunter within ~{Math.round(dist(pos,danger[1]))} m (±{Math.round(pos.acc)} m). {rt?'Route to safe-zone centre shown (estimate).':`Move ${dir((toC))} toward the zone centre (estimate only).`}</p>}
@@ -211,6 +192,7 @@ const cancel = async () => {
    {(!civ?others:[]).map(([k,o])=><CircleMarker key={k} center={[o.lat,o.lng]} radius={7} pathOptions={{color:'#22d3ee'}}/>)}
    {rt&&<Polyline positions={rt} pathOptions={{color:'#22c55e'}}/>}<Follow p={pos}/></MapContainer></div>
   <small>Green dashed = next zone. Positions are approximate GPS estimates; routes are suggestions, not verified safe.</small></>;}
+function Spectator({id,g,u}){const m=g.meta,players=Object.entries(g.players||{}),civilians=players.filter(([,p])=>p.role==='civilian'&&p.alive).length,[now,setNow]=useState(Date.now());useEffect(()=>{const t=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(t);},[]);const sec=elapsed(m,now);useEffect(()=>{if(m.status!=='playing'||m.host!==u.uid)return;if(civilians===0)update(ref(db,`games/${id}/meta`),{status:'ended',winner:'haunters',endedAt:Date.now()});else if(sec>=m.duration*60)update(ref(db,`games/${id}/meta`),{status:'ended',winner:'civilians',endedAt:Date.now()});},[id,m.host,m.status,u.uid,civilians,sec,m.duration]);const z=zoneAt(m,sec);return <div className="spectator card"><h1>SPECTATOR MODE</h1><p><b>YOU HAVE BEEN ELIMINATED</b></p><p>A Haunter caught you. You are now spectating the match.</p><p>Time remaining: {fmt(Math.max(0,m.duration*60-sec))} · Civilians remaining: {civilians}</p><div className="map spectator-map"><MapContainer center={[m.center.lat,m.center.lng]} zoom={16} style={{height:'100%'}}><TileLayer url={cfg.tiles} attribution={cfg.attribution}/><Circle center={[m.center.lat,m.center.lng]} radius={z} pathOptions={{color:'#ff2d4a'}}/>{players.filter(([,p])=>p.alive&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)).map(([k,p])=><CircleMarker key={k} center={[p.lat,p.lng]} radius={7} pathOptions={{color:p.role==='haunter'?'#ff2d4a':'#22d3ee'}}/> )}</MapContainer></div><div className="spectator-list"><h3>Active players</h3>{players.filter(([,p])=>p.alive).map(([k,p])=><span key={k}>{p.name||'Player'}{p.role==='haunter'?' · Haunter':''}</span>)}</div><Link className="btn ghost" to="/dashboard">Leave match</Link></div>;}
 function Over({id,g,u}){const m=g.meta,me=g.players[u.uid],done=useRef(false);const won=m.winner==='civilians'?me.role==='civilian'&&me.alive:m.winner==='haunters'&&me.role==='haunter';
  const mins=Math.round(((m.endedAt||Date.now())-(m.startedAt||Date.now()))/60000);
  useEffect(()=>{if(done.current||!fs||!m.winner)return;done.current=true;const k='h_'+id;if(localStorage.getItem(k))return;localStorage.setItem(k,1);
