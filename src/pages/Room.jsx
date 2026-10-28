@@ -54,21 +54,121 @@ const cancel = async () => {
   {!host&&<button className="btn g" onClick={()=>update(ref(db,`games/${id}/players/${u.uid}`),{ready:!g.players[u.uid].ready})}>Toggle ready</button>}{' '}
   {host&&<><button className="btn g" onClick={start}>Start Game</button> <button className="btn ghost" onClick={cancel}>Cancel game</button></>}{' '}
   {!host&&<button className="btn ghost" onClick={leave}>Leave</button>}</>;}
-function Play({id,g,u}){const m=g.meta,me=g.players[u.uid],[pos,setPos]=useState(null),[err,setErr]=useState(''),[now,setNow]=useState(Date.now()),[rt,setRt]=useState(null);
- const posR=useRef(null),last=useRef(0),near=useRef({}),lastRt=useRef(0),gR=useRef(g);gR.current=g;
- useEffect(()=>{if(!navigator.geolocation)return setErr('Geolocation unavailable.');
-  const w=navigator.geolocation.watchPosition(p=>{const v={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy};posR.current=v;setPos(v);setErr(v.acc>G.maxAcc?`Weak GPS (±${Math.round(v.acc)} m): eliminations paused for you.`:'');
-   if(Date.now()-last.current>G.posThrottleMs){last.current=Date.now();update(ref(db,`games/${id}/players/${u.uid}`),{...v,ts:Date.now()});}},
-   e=>setErr(e.code===1?'Location permission denied. Enable it in browser settings to play.':'Location unavailable or timed out.'),{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
-  return()=>navigator.geolocation.clearWatch(w);},[id]);
- useEffect(()=>{const t=setInterval(()=>{const n=Date.now();setNow(n);const gg=gR.current,mm=gg.meta,p=posR.current,self=gg.players[u.uid],sec=elapsed(mm,n);
-  if(self.alive&&p){const z=zoneAt(mm,sec);if(dist(p,mm.center)-Math.min(p.acc,G.maxAcc)>z){const h=Math.max(0,(self.health??100)-G.damage);update(ref(db,`games/${id}/players/${u.uid}`),h<=0?{health:0,alive:false}:{health:h});}}
-  if(self.alive&&self.role==='haunter'&&p&&p.acc<=G.maxAcc)for(const [k,o] of Object.entries(gg.players)){
-   if(o.role!=='civilian'||!o.alive||!o.ts||n-o.ts>15000||(o.acc||99)>G.maxAcc)continue;
-   if(dist(p,o)<=G.proximity){near.current[k]=(near.current[k]||0)+1;if(near.current[k]>=G.confirmTicks)update(ref(db,`games/${id}/players/${k}`),{alive:false,health:0,by:u.uid});}else near.current[k]=0;}
-  if(mm.host===u.uid){const civ=Object.values(gg.players).filter(x=>x.role==='civilian'&&x.alive).length;
-   if(civ===0)update(ref(db,`games/${id}/meta`),{status:'ended',winner:'haunters',endedAt:n});
-   else if(sec>=mm.duration*60)update(ref(db,`games/${id}/meta`),{status:'ended',winner:'civilians',endedAt:n});}},1000);return()=>clearInterval(t);},[id]);
+  function Play({id,g,u}){const m=g.meta,me=g.players[u.uid],[pos,setPos]=useState(null),[err,setErr]=useState(''),[now,setNow]=useState(Date.now()),[rt,setRt]=useState(null);
+  const posR=useRef(null),last=useRef(0),near=useRef({}),lastRt=useRef(0),gR=useRef(g),lastDamageFix=useRef(0),lastTargetTs=useRef({});gR.current=g;
+  useEffect(()=>{
+  if(!navigator.geolocation){
+   setErr('Geolocation unavailable.');
+   return;
+  }
+
+  const w=navigator.geolocation.watchPosition(p=>{
+   const v={
+    lat:p.coords.latitude,
+    lng:p.coords.longitude,
+    acc:p.coords.accuracy,
+    fixAt:p.timestamp||Date.now()
+   };
+
+   posR.current=v;
+   setPos(v);
+
+   setErr(v.acc>G.maxAcc
+    ?`Weak GPS (±${Math.round(v.acc)} m): eliminations paused for you.`
+    :'');
+
+   if(Date.now()-last.current>=G.posThrottleMs){
+    last.current=Date.now();
+    update(ref(db,`games/${id}/players/${u.uid}`),{
+     lat:v.lat,
+     lng:v.lng,
+     acc:v.acc,
+     ts:Date.now(),
+     fixAt:v.fixAt
+    });
+   }
+  },e=>{
+   setErr(e.code===1
+    ?'Location permission denied. Enable it in browser settings to play.'
+    :'Location unavailable or timed out.');
+  },{
+   enableHighAccuracy:true,
+   maximumAge:2000,
+   timeout:15000
+  });
+
+  return()=>navigator.geolocation.clearWatch(w);
+ },[id,u.uid]);
+ useEffect(()=>{
+  const t=setInterval(()=>{
+   const n=Date.now();
+   setNow(n);
+
+   const gg=gR.current,mm=gg.meta,p=posR.current;
+   const self=gg.players[u.uid];
+   const sec=elapsed(mm,n);
+
+   const freshSelf=p&&p.fixAt&&n-p.fixAt<=10000;
+   const accurateSelf=freshSelf&&p.acc<=G.maxAcc;
+
+   // Process each fresh GPS fix at most once for zone damage.
+   if(self?.alive&&accurateSelf&&p.fixAt!==lastDamageFix.current){
+    lastDamageFix.current=p.fixAt;
+    const z=zoneAt(mm,sec);
+
+    if(dist(p,mm.center)-Math.min(p.acc,G.maxAcc)>z){
+     const h=Math.max(0,(self.health??100)-G.damage);
+     update(ref(db,`games/${id}/players/${u.uid}`),
+      h<=0?{health:0,alive:false}:{health:h});
+    }
+   }
+
+
+   // Count only new, fresh, accurate target GPS fixes.
+   if(self?.alive&&self.role==='haunter'&&accurateSelf){
+    for(const [k,o] of Object.entries(gg.players)){
+     if(o.role!=='civilian'||!o.alive||!o.ts)continue;
+
+     const targetFixAt=o.fixAt||o.ts;
+     if(n-targetFixAt>10000||(o.acc||99)>G.maxAcc){
+      near.current[k]=0;
+      continue;
+     }
+
+     if(targetFixAt===lastTargetTs.current[k])continue;
+     lastTargetTs.current[k]=targetFixAt;
+
+     if(dist(p,o)<=G.proximity){
+      near.current[k]=(near.current[k]||0)+1;
+
+      if(near.current[k]>=G.confirmTicks){
+       near.current[k]=0;
+       update(ref(db,`games/${id}/players/${k}`),
+        {alive:false,health:0,by:u.uid});
+      }
+     }else{
+      near.current[k]=0;
+     }
+    }
+   }
+
+   // Preserve the host's game-end checks.
+   if(mm.host===u.uid){
+    const civ=Object.values(gg.players)
+     .filter(x=>x.role==='civilian'&&x.alive).length;
+
+    if(civ===0){
+     update(ref(db,`games/${id}/meta`),
+      {status:'ended',winner:'haunters',endedAt:n});
+    }else if(sec>=mm.duration*60){
+     update(ref(db,`games/${id}/meta`),
+      {status:'ended',winner:'civilians',endedAt:n});
+    }
+   }
+  },1000);
+
+  return()=>clearInterval(t);
+ },[id,u.uid]);
  const sec=elapsed(m,now),z=zoneAt(m,sec),zn=zoneAt(m,sec+nextShrink(m,sec)+1),civ=me.role==='civilian';
  const others=Object.entries(g.players).filter(([k,o])=>k!==u.uid&&o.alive&&o.pos!==0&&o.ts&&now-o.ts<15000&&pos&&dist(pos,o)<=G.proximity&&o.role===(civ?'haunter':'civilian')&&(civ||o.acc<=G.maxAcc*2));
  const alive=Object.values(g.players);const cl=alive.filter(x=>x.role==='civilian'&&x.alive).length;
