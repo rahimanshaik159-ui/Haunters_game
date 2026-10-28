@@ -15,6 +15,22 @@
 			"command": "npm run dev -- --host 127.0.0.1",
 			"isBackground": true,
 			"problemMatcher": []
+		},
+		{
+			"label": "haunters-gps-build",
+			"type": "shell",
+			"command": "npm run build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "haunters-gps-final-build",
+			"type": "shell",
+			"command": "npm run build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
 		}
 	]
 }

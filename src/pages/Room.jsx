@@ -59,24 +59,40 @@ const cancel = async () => {
   gR.current=g;
   useEffect(()=>{
   if(!navigator.geolocation){
-   setErr('Geolocation unavailable.');
+   setErr('Location services are unavailable in this browser.');
+   return;
+  }
+  if(!window.isSecureContext&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
+   setErr('Location requires HTTPS, except when testing on localhost. Open the game over HTTPS to continue.');
    return;
   }
 
   const w=navigator.geolocation.watchPosition(p=>{
+   const coords=p?.coords,fixAt=Number(p?.timestamp);
+   const valid=Boolean(coords)&&Number.isFinite(coords.latitude)&&Number.isFinite(coords.longitude)&&
+    coords.latitude>=-90&&coords.latitude<=90&&coords.longitude>=-180&&coords.longitude<=180&&
+    Number.isFinite(coords.accuracy)&&coords.accuracy>=0&&Number.isFinite(fixAt);
+   if(!valid){
+    setErr('The browser returned an invalid location fix. Waiting for a reliable GPS reading.');
+    return;
+   }
    const v={
-    lat:p.coords.latitude,
-    lng:p.coords.longitude,
-    acc:p.coords.accuracy,
-    fixAt:p.timestamp||Date.now()
+    lat:coords.latitude,
+    lng:coords.longitude,
+    acc:coords.accuracy,
+    fixAt
    };
 
    posR.current=v;
    setPos(v);
 
-   setErr(v.acc>G.maxAcc
-    ?`Weak GPS (±${Math.round(v.acc)} m): eliminations paused for you.`
-    :'');
+   if(me.role==='haunter'&&v.acc>G.killMaxAcc){
+    setErr(`GPS accuracy is ±${Math.round(v.acc)} m. Kills require a fresh fix within ±${G.killMaxAcc} m; eliminations are paused.`);
+   }else if(v.acc>G.maxAcc){
+    setErr(`GPS accuracy is ±${Math.round(v.acc)} m. Your position is too approximate for safe gameplay updates.`);
+   }else{
+    setErr('');
+   }
 
    if(Date.now()-last.current>=G.posThrottleMs){
     last.current=Date.now();
@@ -89,17 +105,18 @@ const cancel = async () => {
     });
    }
   },e=>{
-   setErr(e.code===1
-    ?'Location permission denied. Enable it in browser settings to play.'
-    :'Location unavailable or timed out.');
+   if(e.code===1)setErr('Location permission denied. Allow location access in browser settings to play.');
+   else if(e.code===2)setErr('Your device could not determine a location. Enable Windows Location Services and try again.');
+   else if(e.code===3)setErr(`GPS timed out after ${Math.round(G.geoTimeoutMs/1000)} seconds. Move near a window or use a device with GPS, then try again.`);
+   else setErr('Location could not be determined. Check browser and device location settings.');
   },{
    enableHighAccuracy:true,
-   maximumAge:2000,
-   timeout:15000
+   maximumAge:G.geoMaximumAgeMs,
+   timeout:G.geoTimeoutMs
   });
 
   return()=>navigator.geolocation.clearWatch(w);
- },[id,u.uid]);
+ },[id,u.uid,me.role]);
  useEffect(()=>{
   const t=setInterval(()=>{
    const n=Date.now();
@@ -109,8 +126,11 @@ const cancel = async () => {
    const self=gg.players[u.uid];
    const sec=elapsed(mm,n);
 
-   const freshSelf=p&&p.fixAt&&n-p.fixAt<=10000;
+   const freshSelf=p&&p.fixAt&&n-p.fixAt>=0&&n-p.fixAt<=G.locationMaxAgeMs;
    const accurateSelf=freshSelf&&p.acc<=G.maxAcc;
+   if(p&&(!freshSelf||!accurateSelf)&&me.role==='haunter'&&(!err||err.startsWith('GPS accuracy')||err.startsWith('GPS fix'))){
+    setErr(!freshSelf?'GPS fix is stale. Waiting for a fresh location update before allowing eliminations.':`GPS accuracy is ±${Math.round(p.acc)} m. Kills require a fresh fix within ±${G.killMaxAcc} m; eliminations are paused.`);
+   }
 
    // Process each fresh GPS fix at most once for zone damage.
    if(self?.alive&&accurateSelf&&p.fixAt!==lastDamageFix.current){
@@ -143,7 +163,7 @@ const cancel = async () => {
   return()=>clearInterval(t);
  },[id,u.uid]);
  const sec=elapsed(m,now),z=zoneAt(m,sec),zn=zoneAt(m,sec+nextShrink(m,sec)+1),civ=me.role==='civilian';
- const validLocation=(p,n)=>Boolean(p&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&Number.isFinite(p.acc)&&p.acc<=G.killMaxAcc&&p.fixAt&&n-p.fixAt<=G.locationMaxAgeMs);
+ const validLocation=(p,n)=>Boolean(p&&Number.isFinite(p.lat)&&p.lat>=-90&&p.lat<=90&&Number.isFinite(p.lng)&&p.lng>=-180&&p.lng<=180&&Number.isFinite(p.acc)&&p.acc>=0&&p.acc<=G.killMaxAcc&&Number.isFinite(p.fixAt)&&n-p.fixAt>=0&&n-p.fixAt<=G.locationMaxAgeMs);
  const candidates=Object.entries(g.players).filter(([k,o])=>k!==u.uid&&o.role==='civilian'&&o.alive&&validLocation(o,now)&&validLocation(pos,now)&&dist(pos,o)+pos.acc+o.acc<=G.killRange);
  const target=candidates.find(([k])=>k===targetId)||candidates[0];
  const others=Object.entries(g.players).filter(([k,o])=>k!==u.uid&&o.alive&&o.pos!==0&&o.ts&&now-o.ts<15000&&pos&&dist(pos,o)<=G.proximity&&o.role===(civ?'haunter':'civilian')&&(civ||o.acc<=G.maxAcc*2));
