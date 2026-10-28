@@ -77,10 +77,33 @@ export function Dashboard(){const u=useUser();const nv=useNavigate();const [g,se
   <div className="grid">{g.map(x=><div className="card" key={x.id}><b>{x.name}</b><br/>{x.radius} m · max {x.max}<br/><Link className="btn sm g" to={'/join?code='+x.id}>Join {x.id}</Link></div>)}</div></>;}
 function Pick({c,set}){useMapEvents({click:e=>set({lat:e.latlng.lat,lng:e.latlng.lng})});return null;}
 function Fly({c}){const m=useMap();useEffect(()=>{m.setView([c.lat,c.lng],m.getZoom()<13?14:m.getZoom());},[c.lat,c.lng]);return null;}
-export function Create(){const u=useUser(),nv=useNavigate();const [c,setC]=useState({lat:20.59,lng:78.96});const [f,setF]=useState({name:'',radius:500,duration:30,haunters:1,max:8,pub:true,pass:'',shrinkMin:5});const [m,setM]=useState(''),[q,setQ]=useState('');
- useEffect(()=>{navigator.geolocation?.getCurrentPosition(p=>setC({lat:p.coords.latitude,lng:p.coords.longitude}),()=>setM('Location denied — click the map to choose the centre.'),{timeout:8000});},[]);
+export function Create(){const u=useUser(),nv=useNavigate();const [c,setC]=useState({lat:20.59,lng:78.96});const [f,setF]=useState({name:'',radius:500,duration:30,haunters:1,max:8,pub:true,pass:'',shrinkMin:5});const [m,setM]=useState(''),[q,setQ]=useState(''),[searching,setSearching]=useState(false);
+ useEffect(()=>{
+  navigator.geolocation?.getCurrentPosition(
+   p=>setC({lat:p.coords.latitude,lng:p.coords.longitude}),
+   e=>{
+    if(e.code===1)setM('Location permission denied. Click the map to choose the centre.');
+    else if(e.code===3)setM('GPS timed out. Click the map or use Search to set the centre.');
+    else setM('Location unavailable. Click the map or use Search to set the centre.');
+   },
+   {enableHighAccuracy:true,timeout:20000,maximumAge:10000}
+  );
+ },[]);
  const k=(n,v)=>setF(o=>({...o,[n]:v}));
- const search=async()=>{if(!q.trim())return;try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q));const j=await r.json();j[0]?setC({lat:+j[0].lat,lng:+j[0].lon}):setM('No result.');}catch{setM('Search unavailable — click the map instead.');}};
+ const search=async()=>{
+  if(!q.trim()||searching)return;
+  setSearching(true);setM('');
+  try{
+   const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q));
+   if(!r.ok){setM(`Search HTTP error ${r.status}. Click the map instead.`);return;}
+   const j=await r.json();
+   j[0]?setC({lat:+j[0].lat,lng:+j[0].lon}):setM('No result found for "'+q+'".');
+  }catch(err){
+   setM('Search request failed. Check connection or click the map.');
+  }finally{
+   setSearching(false);
+  }
+ };
  const go=async e=>{e.preventDefault();setM('');
   if(f.name.trim().length<3)return setM('Name must be 3+ characters.');
   if(f.haunters>=f.max)return setM('Haunters must be fewer than max players.');
@@ -93,7 +116,10 @@ export function Create(){const u=useUser(),nv=useNavigate();const [c,setC]=useSt
    if(f.pub)await set(ref(db,`lobby/${id}`),{name:meta.name,host:u.uid,radius:meta.radius,max:meta.max,createdAt:meta.createdAt,open:true});
    nv('/game/'+id);}catch(x){setM(err(x));}};
  return <form onSubmit={go}><h1>Create Game</h1>
-  <input placeholder="Search place (Nominatim)" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&(e.preventDefault(),search())}/>
+  <div style={{display:'flex',gap:'8px',marginBottom:'12px'}}>
+   <input type="search" enterKeyHint="search" inputMode="search" placeholder="Search place (Nominatim)" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'||e.keyCode===13){e.preventDefault();e.stopPropagation();search();}}} onSearch={e=>{e.preventDefault();search();}} style={{margin:0}}/>
+   <button type="button" className="btn sm ghost" onClick={search} disabled={searching} style={{whiteSpace:'nowrap',flexShrink:0}}>{searching?'Searching…':'Search'}</button>
+  </div>
   <div className="map"><MapContainer center={[c.lat,c.lng]} zoom={5} style={{height:'100%'}}><TileLayer url={cfg.tiles} attribution={cfg.attribution}/>
    <Pick set={setC}/><Fly c={c}/><Marker position={[c.lat,c.lng]}/><Circle center={[c.lat,c.lng]} radius={+f.radius} pathOptions={{color:'#ff2d4a'}}/></MapContainer></div>
   <p>Click the map to set the centre.</p>
