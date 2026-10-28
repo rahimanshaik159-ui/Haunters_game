@@ -190,7 +190,7 @@ const cancel = async () => {
     );
 
     if (confirmed) {
-      window.location.assign('/dashboard');
+      window.location.assign('/Haunters_game/dashboard');
     }
   }}
 >
