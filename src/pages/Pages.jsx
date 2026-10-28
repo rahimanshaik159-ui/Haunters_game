@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';import {Link,useNavigate,useSearchParams} from 'react-router-dom';
+import {useEffect,useRef,useState} from 'react';import {Link,useNavigate,useSearchParams} from 'react-router-dom';
 import {createUserWithEmailAndPassword,signInWithEmailAndPassword,sendEmailVerification,sendPasswordResetEmail,updateProfile,deleteUser} from 'firebase/auth';
 import {ref,get,set,onValue,query,limitToLast} from 'firebase/database';
 import {doc,setDoc,collection,query as fq,orderBy,limit,getDocs} from 'firebase/firestore';
@@ -77,7 +77,7 @@ export function Dashboard(){const u=useUser();const nv=useNavigate();const [g,se
   <div className="grid">{g.map(x=><div className="card" key={x.id}><b>{x.name}</b><br/>{x.radius} m · max {x.max}<br/><Link className="btn sm g" to={'/join?code='+x.id}>Join {x.id}</Link></div>)}</div></>;}
 function Pick({c,set}){useMapEvents({click:e=>set({lat:e.latlng.lat,lng:e.latlng.lng})});return null;}
 function Fly({c}){const m=useMap();useEffect(()=>{m.setView([c.lat,c.lng],m.getZoom()<13?14:m.getZoom());},[c.lat,c.lng]);return null;}
-export function Create(){const u=useUser(),nv=useNavigate();const [c,setC]=useState({lat:20.59,lng:78.96});const [f,setF]=useState({name:'',radius:500,duration:30,haunters:1,max:8,pub:true,pass:'',shrinkMin:5});const [m,setM]=useState(''),[q,setQ]=useState(''),[searching,setSearching]=useState(false);
+export function Create(){const u=useUser(),nv=useNavigate(),searchInput=useRef(null),searchingRef=useRef(false);const [c,setC]=useState({lat:20.59,lng:78.96});const [f,setF]=useState({name:'',radius:500,duration:30,haunters:1,max:8,pub:true,pass:'',shrinkMin:5});const [m,setM]=useState(''),[q,setQ]=useState(''),[searching,setSearching]=useState(false);
  useEffect(()=>{
   navigator.geolocation?.getCurrentPosition(
    p=>setC({lat:p.coords.latitude,lng:p.coords.longitude}),
@@ -91,7 +91,9 @@ export function Create(){const u=useUser(),nv=useNavigate();const [c,setC]=useSt
  },[]);
  const k=(n,v)=>setF(o=>({...o,[n]:v}));
  const search=async()=>{
-  if(!q.trim()||searching)return;
+  if(!q.trim()||searchingRef.current)return;
+  console.debug('[HAUNTERS] map search handler executing');
+  searchingRef.current=true;
   setSearching(true);setM('');
   try{
    const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(q));
@@ -101,6 +103,7 @@ export function Create(){const u=useUser(),nv=useNavigate();const [c,setC]=useSt
   }catch(err){
    setM('Search request failed. Check connection or click the map.');
   }finally{
+   searchingRef.current=false;
    setSearching(false);
   }
  };
@@ -115,10 +118,12 @@ export function Create(){const u=useUser(),nv=useNavigate();const [c,setC]=useSt
    await set(ref(db,`users/${u.uid}/activeGameId`),id);
    if(f.pub)await set(ref(db,`lobby/${id}`),{name:meta.name,host:u.uid,radius:meta.radius,max:meta.max,createdAt:meta.createdAt,open:true});
    nv('/game/'+id);}catch(x){setM(err(x));}};
- return <form onSubmit={go}><h1>Create Game</h1>
+ const runSearch=e=>{e.preventDefault();e.stopPropagation();console.debug('[HAUNTERS] map search Enter/click event');search();};
+ const submit=e=>{if(document.activeElement===searchInput.current){runSearch(e);return;}go(e);};
+ return <form onSubmit={submit}><h1>Create Game</h1>
   <div style={{display:'flex',gap:'8px',marginBottom:'12px'}}>
-   <input type="search" enterKeyHint="search" inputMode="search" placeholder="Search place (Nominatim)" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'||e.keyCode===13){e.preventDefault();e.stopPropagation();search();}}} onSearch={e=>{e.preventDefault();search();}} style={{margin:0}}/>
-   <button type="button" className="btn sm ghost" onClick={search} disabled={searching} style={{whiteSpace:'nowrap',flexShrink:0}}>{searching?'Searching…':'Search'}</button>
+   <input ref={searchInput} type="search" enterKeyHint="search" inputMode="search" placeholder="Search place (Nominatim)" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'||e.keyCode===13)runSearch(e);}} onSearch={runSearch} style={{margin:0}}/>
+   <button type="button" className="btn sm ghost" onClick={runSearch} disabled={searching} style={{whiteSpace:'nowrap',flexShrink:0}}>{searching?'Searching…':'Search'}</button>
   </div>
   <div className="map"><MapContainer center={[c.lat,c.lng]} zoom={5} style={{height:'100%'}}><TileLayer url={cfg.tiles} attribution={cfg.attribution}/>
    <Pick set={setC}/><Fly c={c}/><Marker position={[c.lat,c.lng]}/><Circle center={[c.lat,c.lng]} radius={+f.radius} pathOptions={{color:'#ff2d4a'}}/></MapContainer></div>
