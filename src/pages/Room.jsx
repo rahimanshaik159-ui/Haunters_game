@@ -178,7 +178,26 @@ const cancel = async () => {
  const toC=pos?bearing(pos,m.center):0;
  return <><div className="hud"><div className="card">Role<br/><b style={{color:civ?'var(--cy)':'var(--red)'}}>{me.role.toUpperCase()}</b></div>
   <div className="card">Time left<br/><b>{fmt(Math.max(0,m.duration*60-sec))}</b></div><div className="card">Zone {Math.round(z)} m<br/>shrinks in {fmt(nextShrink(m,sec))}</div>
-  <div className="card">Civilians left<br/><b>{cl}</b></div></div>
+  
+<div className="card">Civilians left<br/><b>{cl}</b></div>
+
+<button
+  type="button"
+  className="btn ghost"
+  onClick={() => {
+    const confirmed = window.confirm(
+      'Exit this game and return to the dashboard?'
+    );
+
+    if (confirmed) {
+      window.location.assign('/dashboard');
+    }
+  }}
+>
+  Exit Game
+</button>
+</div>
+
   <div className="bar"><i style={{width:(me.health??100)+'%'}}/></div><small>Health {me.health??100}%</small>
   {err&&<p className="warn">{err}</p>}{!pos&&!err&&<p>Waiting for GPS…</p>}
   {danger&&<p className="alert">⚠ Haunter within ~{Math.round(dist(pos,danger[1]))} m (±{Math.round(pos.acc)} m). {rt?'Route to safe-zone centre shown (estimate).':`Move ${dir((toC))} toward the zone centre (estimate only).`}</p>}
