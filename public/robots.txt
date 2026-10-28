@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /game/
+Disallow: /account
+Sitemap: https://YOUR-DOMAIN.example/sitemap.xml

@@ -1,0 +1,6 @@
+{"rules":{
+ "lobby":{".read":"auth!=null","$g":{".write":"auth!=null && (!data.exists() || data.child('host').val()===auth.uid)"}},
+ "games":{"$g":{
+ ".read":"auth!=null",
+ "meta":{".write":"auth!=null && (!data.exists() || data.child('host').val()===auth.uid)"},
+ "players":{"$u":{".write":"auth!=null && (auth.uid===$u || root.child('games/'+$g+'/meta/host').val()===auth.uid || (newData.child('alive').val()===false && root.child('games/'+$g+'/players/'+auth.uid).exists()))"}}}}}}
