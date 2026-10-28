@@ -10,6 +10,7 @@ function Follow({p}){const m=useMap();useEffect(()=>{if(p)m.setView([p.lat,p.lng
 export default function Room(){
  const {id}=useParams(),u=useUser(),nv=useNavigate();const [g,setG]=useState(undefined);
  useEffect(()=>onValue(ref(db,'games/'+id),s=>setG(s.val()),()=>setG(null)),[id]);
+ useEffect(()=>{const me=g?.players?.[u.uid],status=g?.meta?.status;if(!me||!status)return;const activeRef=ref(db,`users/${u.uid}/activeGameId`);if(status==='waiting'||status==='playing')set(activeRef,id).catch(()=>{});else remove(activeRef).catch(()=>{});},[id,u.uid,g?.meta?.status,Boolean(g?.players?.[u.uid])]);
  useEffect(()=>{if(g?.players?.[u.uid]?.alive===false)return;const r=ref(db,`games/${id}/players/${u.uid}/online`);set(r,true).catch(()=>{});onDisconnect(r).set(false).catch(()=>{});},[id,u.uid,g?.players?.[u.uid]?.alive]);
  if(g===undefined)return <p className="c">Loading…</p>;
  if(!g||!g.meta)return <div className="c"><p>Game not found.</p><Link to="/dashboard" className="btn">Back</Link></div>;
@@ -43,7 +44,7 @@ const cancel = async () => {
   }
 };
 
- const leave=async()=>{await remove(ref(db,`games/${id}/players/${u.uid}`));nv('/dashboard');};
+ const leave=async()=>{await remove(ref(db,`games/${id}/players/${u.uid}`));await remove(ref(db,`users/${u.uid}/activeGameId`));nv('/dashboard');};
  return <><h1>{m.name}</h1><div className="card"><div className="gid">{id}</div><div className="c">
   <button className="btn sm" onClick={()=>navigator.clipboard.writeText(id)}>Copy ID</button>{' '}
   <button className="btn sm ghost" onClick={()=>navigator.share?navigator.share({title:'HAUNTERS',text:`Join my game: ${id}`,url:link}):navigator.clipboard.writeText(link)}>Share</button>

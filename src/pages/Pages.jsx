@@ -4,7 +4,7 @@ import {ref,get,set,onValue,query,limitToLast} from 'firebase/database';
 import {doc,setDoc,collection,query as fq,orderBy,limit,getDocs} from 'firebase/firestore';
 import {MapContainer,TileLayer,Circle,Marker,useMapEvents,useMap} from 'react-leaflet';
 import L from 'leaflet';import {auth,db,fs} from '../services/firebase';import {useUser} from '../App.jsx';
-import {rid,sha} from '../services/gameplay';import {cfg} from '../config';import Ad from '../components/Ad.jsx';
+import {rid,sha,elapsed} from '../services/gameplay';import {cfg} from '../config';import Ad from '../components/Ad.jsx';
 L.Icon.Default.mergeOptions({iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',shadowUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'});
 const err=e=>(e?.code||e?.message||String(e)).replace('auth/','').replace(/-/g,' ');
 export function Home(){const u=useUser();const items=[['⌖','Real World Map','Play in your own city'],['♧','Team Based','Hunt together, survive together'],['◷','Zone Shrinks','Keep moving to stay safe'],['⌁','Live Tracking','See the game unfold live'],['✦','Power-ups','Use smart advantages']];return <>
@@ -46,10 +46,33 @@ export function Login(){const nv=useNavigate(),u=useUser();const [reg,setReg]=us
   <label>Email</label><input name="e" type="email" required/><label>Password</label><input name="p" type="password" required minLength={6}/>
   {m&&<p className="err">{m}</p>}<button className="btn" style={{width:'100%'}}>{reg?'Register':'Login'}</button>
   <p className="c"><a href="#" onClick={e=>{e.preventDefault();setReg(!reg);}}>{reg?'Have an account? Login':'New? Register'}</a>{!reg&&<> · <a href="#" onClick={e=>{e.preventDefault();reset();}}>Forgot password</a></>}</p></form>;}
-export function Dashboard(){const u=useUser();const [g,setG]=useState([]);
- useEffect(()=>onValue(query(ref(db,'lobby'),limitToLast(30)),s=>{const v=s.val()||{};setG(Object.entries(v).filter(([,x])=>Date.now()-x.createdAt<3*3600e3&&x.open).map(([id,x])=>({id,...x})));}),[]);
+const firebaseError=(e,path)=>{const code=String(e?.code||'').toUpperCase();if(import.meta.env.DEV)console.warn('[Return to Game] Firebase read failed',{path,code:code||'UNKNOWN',message:e?.message||'No error message',authenticated:Boolean(auth?.currentUser)});if(code.includes('PERMISSION_DENIED'))return `Firebase permission denied for ${path}. Confirm the deployed Realtime Database rules allow the signed-in user to read this scoped path.`;if(code.includes('NETWORK')||code.includes('UNAVAILABLE')||code.includes('DISCONNECTED'))return 'Unable to reach Firebase. Check your connection and try again.';return `Could not check your game membership: ${e?.message||code||'unknown Firebase error'}`;};
+export function Dashboard(){const u=useUser();const nv=useNavigate();const [g,setG]=useState([]);const [active,setActive]=useState({loading:true,game:null,message:''});const [returning,setReturning]=useState(false);
+ useEffect(()=>{const stop=onValue(query(ref(db,'lobby'),limitToLast(30)),s=>{const v=s.val()||{};setG(Object.entries(v).filter(([,x])=>Date.now()-x.createdAt<3*3600e3&&x.open).map(([id,x])=>({id,...x})));});return stop;},[]);
+ useEffect(()=>{let gameStop=()=>{};if(!auth?.currentUser||auth.currentUser.uid!==u.uid){setActive({loading:false,game:null,message:'Your session is no longer signed in.'});return()=>{};}const activePath=`users/${u.uid}/activeGameId`,activeRef=ref(db,activePath);const stop=onValue(activeRef,snap=>{
+   gameStop();gameStop=()=>{};const id=snap.val();if(!id){setActive({loading:false,game:null,message:''});return;}
+   gameStop=onValue(ref(db,`games/${id}`),gameSnap=>{const game=gameSnap.val(),meta=game?.meta,me=game?.players?.[u.uid];if(!meta||!me){remove(activeRef).catch(e=>{if(import.meta.env.DEV)console.warn('[Return to Game] stale pointer cleanup failed',{path:activePath,code:e?.code||'UNKNOWN'});});setActive({loading:false,game:null,message:meta?'You are no longer a member of this game.':'This game is no longer available.'});return;}
+    const now=Date.now(),expired=meta.status==='playing'&&Number.isFinite(meta.startedAt)&&Number.isFinite(meta.duration)&&elapsed(meta,now)>=meta.duration*60,staleWaiting=meta.status==='waiting'&&Number.isFinite(meta.createdAt)&&now-meta.createdAt>6*3600e3;
+    if((meta.status!=='waiting'&&meta.status!=='playing')||expired||staleWaiting){remove(activeRef).catch(e=>{if(import.meta.env.DEV)console.warn('[Return to Game] completed pointer cleanup failed',{path:activePath,code:e?.code||'UNKNOWN'});});setActive({loading:false,game:null,message:'This game has ended.'});return;}
+    setActive({loading:false,game:{id,meta,player:me},message:me.alive===false?'You were eliminated — spectating remains available from the game link.':''});
+   },e=>setActive({loading:false,game:null,message:firebaseError(e,`games/${id}`)}));
+  },e=>setActive({loading:false,game:null,message:firebaseError(e,activePath)}));return()=>{stop();gameStop();};
+ },[u.uid]);
+ const returnToGame=async()=>{if(!active.game||returning)return;setReturning(true);
+  try{const {id}=active.game,s=await get(ref(db,`games/${id}`)),game=s.val(),meta=game?.meta,me=game?.players?.[u.uid];
+   const now=Date.now(),expired=meta?.status==='playing'&&Number.isFinite(meta.startedAt)&&Number.isFinite(meta.duration)&&elapsed(meta,now)>=meta.duration*60;
+   const staleWaiting=meta?.status==='waiting'&&Number.isFinite(meta.createdAt)&&now-meta.createdAt>6*3600e3;
+   if(!meta||!me)return setActive({loading:false,game:null,message:'This game is no longer available.'});
+   if((meta.status==='playing'&&expired)||(meta.status==='waiting'&&staleWaiting))return setActive({loading:false,game:null,message:'This game has ended.'});
+   if(meta.status!=='waiting'&&meta.status!=='playing')return setActive({loading:false,game:null,message:'This game has ended.'});
+   if(me.alive===false)return setActive({loading:false,game:{id,meta,player:me},message:'You were eliminated — spectating remains available from the game link.'});
+   nv('/game/'+id);
+  }catch(x){setActive(o=>({...o,message:firebaseError(x,`games/${active.game.id}`)}));}finally{setReturning(false);}
+ };
  return <><h1>Welcome, {u.displayName||'player'}</h1>{!u.emailVerified&&<p className="warn">Email not verified — check your inbox.</p>}
-  <Link className="btn" to="/create">Create Game</Link> <Link className="btn ghost" to="/join">Join with ID</Link>
+  <div className="dashboard-actions"><Link className="btn" to="/create">Create Game</Link> <Link className="btn ghost" to="/join">Join with ID</Link>
+   {active.loading?<span className="active-game-status">Checking active games…</span>:active.game?<><button type="button" className="btn g" onClick={returnToGame} disabled={returning||active.game.player.alive===false}>{returning?'Opening…':'Return to Game'}</button>{active.message&&<span className="active-game-status">{active.message}</span>}</>:active.message&&<span className="active-game-status">{active.message}</span>}
+  </div>
   <h2>Public games</h2>{!g.length&&<p>No public games right now. Create one!</p>}
   <div className="grid">{g.map(x=><div className="card" key={x.id}><b>{x.name}</b><br/>{x.radius} m · max {x.max}<br/><Link className="btn sm g" to={'/join?code='+x.id}>Join {x.id}</Link></div>)}</div></>;}
 function Pick({c,set}){useMapEvents({click:e=>set({lat:e.latlng.lat,lng:e.latlng.lng})});return null;}
@@ -66,6 +89,7 @@ export function Create(){const u=useUser(),nv=useNavigate();const [c,setC]=useSt
    const meta={name:f.name.trim(),host:u.uid,center:c,radius:+f.radius,duration:+f.duration,haunters:+f.haunters,max:+f.max,pub:f.pub,shrinkMin:+f.shrinkMin,status:'waiting',createdAt:Date.now(),pass:f.pass?await sha(f.pass+id):''};
    await set(ref(db,`games/${id}/meta`),meta);
    await set(ref(db,`games/${id}/players/${u.uid}`),{name:u.displayName||'Host',ready:true,alive:true,health:100});
+   await set(ref(db,`users/${u.uid}/activeGameId`),id);
    if(f.pub)await set(ref(db,`lobby/${id}`),{name:meta.name,host:u.uid,radius:meta.radius,max:meta.max,createdAt:meta.createdAt,open:true});
    nv('/game/'+id);}catch(x){setM(err(x));}};
  return <form onSubmit={go}><h1>Create Game</h1>
@@ -84,13 +108,11 @@ export function Create(){const u=useUser(),nv=useNavigate();const [c,setC]=useSt
   {m&&<p className="err">{m}</p>}<button className="btn g">Generate Game ID</button></form>;}
 export function Join(){const u=useUser(),nv=useNavigate(),[sp]=useSearchParams();const [code,setCode]=useState((sp.get('code')||'').toUpperCase()),[pw,setPw]=useState(''),[m,setM]=useState('');
  const go=async e=>{e.preventDefault();setM('');const id=code.trim().toUpperCase();
-  try{const s=await get(ref(db,`games/${id}`));if(!s.exists())return setM('Game not found.');const {meta,players={}}=s.val();
-   if(players[u.uid])return nv('/game/'+id);
+  try{const s=await get(ref(db,`games/${id}/meta`));if(!s.exists())return setM('Game not found.');const meta=s.val();
    if(meta.status!=='waiting')return setM('This game has already started or ended.');
    if(Date.now()-meta.createdAt>6*3600e3)return setM('This game has expired.');
-   if(Object.keys(players).length>=meta.max)return setM('This game is full.');
    if(meta.pass&&meta.pass!==await sha(pw+id))return setM('Wrong password.');
-   await set(ref(db,`games/${id}/players/${u.uid}`),{name:u.displayName||'Player',ready:false,alive:true,health:100});nv('/game/'+id);}catch(x){setM(err(x));}};
+   await set(ref(db,`games/${id}/players/${u.uid}`),{name:u.displayName||'Player',ready:false,alive:true,health:100});await set(ref(db,`users/${u.uid}/activeGameId`),id);nv('/game/'+id);}catch(x){setM(err(x));}};
  return <form className="card" onSubmit={go} style={{maxWidth:420,margin:'20px auto'}}><h2>Join Game</h2><label>Game ID</label>
   <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} maxLength={5} placeholder="HN7K3" required/>
   <label>Password (if private)</label><input value={pw} onChange={e=>setPw(e.target.value)}/>{m&&<p className="err">{m}</p>}<button className="btn g">Join</button></form>;}
