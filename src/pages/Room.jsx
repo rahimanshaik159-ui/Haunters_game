@@ -22,7 +22,27 @@ function Wait({id,g,u,nv}){const m=g.meta,ps=Object.entries(g.players||{}),host=
   const ids=ps.map(([k])=>k).sort(()=>Math.random()-.5),up={};
   ids.forEach((k,i)=>{up[`games/${id}/players/${k}/role`]=i<m.haunters?'haunter':'civilian';up[`games/${id}/players/${k}/health`]=100;up[`games/${id}/players/${k}/alive`]=true;});
   up[`games/${id}/meta/status`]='playing';up[`games/${id}/meta/startedAt`]=Date.now();up[`lobby/${id}/open`]=false;await update(ref(db),up);};
- const cancel=async()=>{await update(ref(db),X);};
+ 
+const cancel = async () => {
+  if (!window.confirm('Are you sure you want to cancel this game?')) return;
+
+  try {
+    await update(ref(db, `games/${id}/meta`), {
+      status: 'cancelled',
+      endedAt: Date.now()
+    });
+
+    if (m.pub) {
+      await remove(ref(db, `lobby/${id}`));
+    }
+
+    nv('/dashboard');
+  } catch (error) {
+    console.error('Cancel game failed:', error);
+    setMsg('Could not cancel game: ' + error.message);
+  }
+};
+
  const leave=async()=>{await remove(ref(db,`games/${id}/players/${u.uid}`));nv('/dashboard');};
  return <><h1>{m.name}</h1><div className="card"><div className="gid">{id}</div><div className="c">
   <button className="btn sm" onClick={()=>navigator.clipboard.writeText(id)}>Copy ID</button>{' '}
