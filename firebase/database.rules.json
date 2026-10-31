@@ -1,7 +1,148 @@
-{"rules":{
- "lobby":{".read":"auth!=null","$g":{".write":"auth!=null && (!data.exists() || data.child('host').val()===auth.uid)"}},
- "users":{"$u":{".read":"auth!=null && auth.uid===$u",".write":"auth!=null && auth.uid===$u"}},
- "games":{"$g":{
- ".read":"auth!=null && (!data.exists() || data.child('players').child(auth.uid).exists())",
- "meta":{".read":"auth!=null",".write":"auth!=null && (!data.exists() || data.child('host').val()===auth.uid)"},
- "players":{"$u":{".write":"auth!=null && (auth.uid===$u || root.child('games/'+$g+'/meta/host').val()===auth.uid || (newData.child('alive').val()===false && root.child('games/'+$g+'/players/'+auth.uid).exists()))"}}}}}}
+{
+ "rules": {
+  "lobby": {
+   ".read": "auth!=null",
+   "$g": {
+    ".write": "auth!=null && (!data.exists() || data.child('host').val()===auth.uid)"
+   }
+  },
+  "users": {
+   "$u": {
+    ".read": "auth!=null && auth.uid===$u",
+    ".write": "auth!=null && auth.uid===$u"
+   }
+  },
+  "games": {
+   "$g": {
+    ".read": "auth != null",
+    "meta": {
+     ".read": "auth!=null",
+     ".write": "auth!=null && (!data.exists() || data.child('host').val()===auth.uid)"
+    },
+    "players": {
+     "$u": {
+      ".validate": "!newData.exists() || (newData.hasChildren(['name', 'ready', 'alive', 'health']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('ready').isBoolean() && newData.child('alive').isBoolean() && newData.child('health').isNumber() && newData.child('health').val() >= 0 && newData.child('health').val() <= 100)",
+      ".write": "auth!=null && (auth.uid===$u || root.child('games/'+$g+'/meta/host').val()===auth.uid || (newData.child('alive').val()===false && root.child('games/'+$g+'/players/'+auth.uid).exists()))"
+     }
+    },
+    "powerups": {
+     ".write": "auth!=null && !newData.exists() && root.child('games/'+$g+'/meta/host').val()===auth.uid",
+     "pickups": {
+      "$slot": {
+       ".validate": "$slot.matches(/^[ch][1-9]$/) && newData.hasChildren(['id','team','type','lat','lng','state','spawnedAt','expiresAt']) && newData.child('team').val()===($slot.beginsWith('c') ? 'civilian' : 'haunter')",
+       ".write": "auth!=null && root.child('games/'+$g+'/players/'+auth.uid).exists() && root.child('games/'+$g+'/meta/status').val()==='playing' && ( (newData.child('state').val()==='active' && !newData.child('claimedBy').exists() && !newData.child('delivered').exists() && ( !data.exists() || (data.child('state').val()==='claimed' && now>=data.child('respawnAt').val()-2000) || (data.child('state').val()==='active' && now>=data.child('expiresAt').val()-2000) )) || (data.child('state').val()==='active' && newData.child('state').val()==='claimed' && newData.child('claimedBy').val()===auth.uid && root.child('games/'+$g+'/players/'+auth.uid).child('role').val()===data.child('team').val() && root.child('games/'+$g+'/players/'+auth.uid).child('alive').val()===true && now<data.child('expiresAt').val()+2000 && newData.child('claimedAt').exists() && newData.child('respawnAt').val()>=now-2000 && newData.child('respawnAt').val()<=now+30000 && !newData.child('delivered').exists() && newData.child('id').val()===data.child('id').val() && newData.child('team').val()===data.child('team').val() && newData.child('type').val()===data.child('type').val() && newData.child('lat').val()===data.child('lat').val() && newData.child('lng').val()===data.child('lng').val() && newData.child('spawnedAt').val()===data.child('spawnedAt').val() && newData.child('expiresAt').val()===data.child('expiresAt').val()) || (data.child('state').val()==='claimed' && data.child('claimedBy').val()===auth.uid && !data.child('delivered').exists() && newData.child('delivered').val()===true && newData.child('state').val()==='claimed' && newData.child('claimedBy').val()===auth.uid && newData.child('id').val()===data.child('id').val() && newData.child('team').val()===data.child('team').val() && newData.child('type').val()===data.child('type').val() && newData.child('lat').val()===data.child('lat').val() && newData.child('lng').val()===data.child('lng').val() && newData.child('spawnedAt').val()===data.child('spawnedAt').val() && newData.child('expiresAt').val()===data.child('expiresAt').val() && newData.child('claimedAt').val()===data.child('claimedAt').val() && newData.child('respawnAt').val()===data.child('respawnAt').val()) )",
+       "id": {
+        ".validate": "newData.isString() && newData.val().length<64"
+       },
+       "team": {
+        ".validate": "newData.val()==='civilian' || newData.val()==='haunter'"
+       },
+       "type": {
+        ".validate": "newData.isString() && ( (newData.parent().child('team').val()==='civilian' && (newData.val()==='ghostClock' || newData.val()==='adrenaline' || newData.val()==='energyShield' || newData.val()==='hologramDecoy' || newData.val()==='empBlast' || newData.val()==='safeBubble')) || (newData.parent().child('team').val()==='haunter' && (newData.val()==='haunterVision' || newData.val()==='bloodRush' || newData.val()==='sonarPulse' || newData.val()==='fearWave' || newData.val()==='shadowClone' || newData.val()==='bloodTrail')) )"
+       },
+       "lat": {
+        ".validate": "newData.isNumber() && newData.val()>=-90 && newData.val()<=90"
+       },
+       "lng": {
+        ".validate": "newData.isNumber() && newData.val()>=-180 && newData.val()<=180"
+       },
+       "state": {
+        ".validate": "newData.val()==='active' || newData.val()==='claimed'"
+       },
+       "spawnedAt": {
+        ".validate": "newData.isNumber()"
+       },
+       "expiresAt": {
+        ".validate": "newData.isNumber()"
+       },
+       "claimedAt": {
+        ".validate": "newData.isNumber()"
+       },
+       "respawnAt": {
+        ".validate": "newData.isNumber()"
+       },
+       "claimedBy": {
+        ".validate": "newData.isString() && newData.val().length<64"
+       },
+       "delivered": {
+        ".validate": "newData.val()===true"
+       },
+       "$other": {
+        ".validate": false
+       }
+      }
+     },
+     "inventory": {
+      "$uid": {
+       "$slot": {
+        ".validate": "$slot.matches(/^s[0-5]$/) && newData.hasChildren(['type','pid','src','at'])",
+        ".write": "auth!=null && auth.uid===$uid && ( (!newData.exists() && data.exists()) || (!data.exists() && newData.exists() && root.child('games/'+$g+'/players/'+auth.uid).child('alive').val()===true && root.child('games/'+$g+'/powerups/pickups/'+newData.child('src').val()+'/claimedBy').val()===auth.uid && root.child('games/'+$g+'/powerups/pickups/'+newData.child('src').val()+'/id').val()===newData.child('pid').val() && root.child('games/'+$g+'/powerups/pickups/'+newData.child('src').val()+'/type').val()===newData.child('type').val() && !root.child('games/'+$g+'/powerups/pickups/'+newData.child('src').val()+'/delivered').exists() && root.child('games/'+$g+'/powerups/pickups/'+newData.child('src').val()+'/team').val()===root.child('games/'+$g+'/players/'+auth.uid).child('role').val() ) )",
+        "type": {
+         ".validate": "newData.isString()"
+        },
+        "pid": {
+         ".validate": "newData.isString() && newData.val().length<64"
+        },
+        "src": {
+         ".validate": "newData.isString() && newData.val().matches(/^[ch][1-9]$/)"
+        },
+        "at": {
+         ".validate": "newData.isNumber()"
+        },
+        "$other": {
+         ".validate": false
+        }
+       }
+      }
+     },
+     "effects": {
+      "$uid": {
+       "$type": {
+        ".validate": "newData.hasChildren(['type','team','at','endsAt']) && newData.child('type').val()===$type",
+        ".write": "auth!=null && root.child('games/'+$g+'/meta/status').val()==='playing' && ( (auth.uid===$uid && !newData.exists()) || (auth.uid===$uid && newData.exists() && root.child('games/'+$g+'/players/'+auth.uid).exists() && root.child('games/'+$g+'/players/'+auth.uid).child('alive').val()===true && root.child('games/'+$g+'/players/'+auth.uid).child('role').val()===newData.child('team').val() && (root.child('games/'+$g+'/powerups/inventory/'+auth.uid+'/s0/type').val()===$type || root.child('games/'+$g+'/powerups/inventory/'+auth.uid+'/s1/type').val()===$type || root.child('games/'+$g+'/powerups/inventory/'+auth.uid+'/s2/type').val()===$type || root.child('games/'+$g+'/powerups/inventory/'+auth.uid+'/s3/type').val()===$type || root.child('games/'+$g+'/powerups/inventory/'+auth.uid+'/s4/type').val()===$type || root.child('games/'+$g+'/powerups/inventory/'+auth.uid+'/s5/type').val()===$type) && (!root.child('games/'+$g+'/powerups/cooldowns/'+auth.uid+'/'+$type).exists() || now>=root.child('games/'+$g+'/powerups/cooldowns/'+auth.uid+'/'+$type).val()-2000) && (!data.exists() || data.child('endsAt').val()<=now+2000)) || ($type==='energyShield' && !newData.exists() && data.exists() && root.child('games/'+$g+'/players/'+auth.uid).child('role').val()==='haunter' && root.child('games/'+$g+'/players/'+auth.uid).child('alive').val()===true) )",
+        "type": {
+         ".validate": "newData.isString() && ( (newData.parent().child('team').val()==='civilian' && (newData.val()==='ghostClock' || newData.val()==='adrenaline' || newData.val()==='energyShield' || newData.val()==='hologramDecoy' || newData.val()==='empBlast' || newData.val()==='safeBubble')) || (newData.parent().child('team').val()==='haunter' && (newData.val()==='haunterVision' || newData.val()==='bloodRush' || newData.val()==='sonarPulse' || newData.val()==='fearWave' || newData.val()==='shadowClone' || newData.val()==='bloodTrail')) )"
+        },
+        "team": {
+         ".validate": "newData.val()==='civilian' || newData.val()==='haunter'"
+        },
+        "at": {
+         ".validate": "newData.isNumber() && newData.val()<=now+10000"
+        },
+        "endsAt": {
+         ".validate": "newData.isNumber() && newData.val()<=now+70000 && newData.val()>=now-10000"
+        },
+        "lat": {
+         ".validate": "newData.isNumber() && newData.val()>=-90 && newData.val()<=90"
+        },
+        "lng": {
+         ".validate": "newData.isNumber() && newData.val()>=-180 && newData.val()<=180"
+        },
+        "r": {
+         ".validate": "newData.isNumber() && newData.val()>0 && newData.val()<=100"
+        },
+        "bearing": {
+         ".validate": "newData.isNumber()"
+        },
+        "spd": {
+         ".validate": "newData.isNumber() && newData.val()>=0 && newData.val()<=5"
+        },
+        "$other": {
+         ".validate": false
+        }
+       }
+      }
+     },
+     "cooldowns": {
+      "$uid": {
+       "$type": {
+        ".write": "auth!=null && auth.uid===$uid && root.child('games/'+$g+'/meta/status').val()==='playing' && newData.isNumber() && newData.val()<=now+120000 && (!data.exists() || now>=data.val()-2000)",
+        ".validate": "newData.isNumber()"
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}

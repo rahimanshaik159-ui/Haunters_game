@@ -1,5 +1,9 @@
-node_modules
-dist
+
+node_modules/
+dist/
 .env
-.env.local
-*.log
+.env.*
+!.env.example
+
+.vscode/
+.DS_Store

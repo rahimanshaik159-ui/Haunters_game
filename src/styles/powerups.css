@@ -1,0 +1,64 @@
+/* HAUNTERS power-ups + GPS status. Reuses the existing theme variables (dark/light aware). */
+.gps-panel{padding:10px 12px;margin:8px 0}
+.gps-row{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13px}
+.gps-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);font-weight:700}
+.gps-pill i{width:9px;height:9px;border-radius:50%;background:var(--muted);display:inline-block}
+.gps-pill.ok i{background:var(--gr)}.gps-pill.bad i{background:var(--red)}.gps-pill.wait i{background:#facc15;animation:p 1s infinite}
+.gps-pill.small{font-weight:600;font-size:12px}
+.gps-acc{font-weight:700}.gps-acc.q-good{color:var(--gr)}.gps-acc.q-fair{color:#d4a017}.gps-acc.q-poor{color:var(--red)}
+.gps-meta{color:var(--muted)}
+.gps-help{margin:8px 0 0;font-size:13px;color:var(--alert-text);background:var(--alert-bg);padding:8px 10px;border-radius:8px}
+.gps-panel .btn{margin-top:8px}
+
+.pu-panel{padding:12px;margin:10px 0;border-width:1px}
+.pu-panel.pu-civilian{border-color:var(--cy)}.pu-panel.pu-haunter{border-color:var(--red)}
+.pu-head{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:14px;letter-spacing:1px}
+.pu-head span{color:var(--muted);font-size:12px;letter-spacing:0}
+.pu-notice{margin:8px 0;padding:8px 10px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);font-weight:700;font-size:14px}
+.pu-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.pu-chip{position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--border);background:var(--surface-2)}
+.pu-chip.on{border-color:var(--gr)}.pu-chip.bad{border-color:var(--red);color:var(--alert-text);background:var(--alert-bg)}
+.pu-chip i{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--gr);transform-origin:left;transition:transform 1s linear}
+.pu-slots{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:6px}
+.pu-slot{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:64px;padding:6px 2px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);cursor:pointer;font:inherit;touch-action:manipulation}
+.pu-slot.empty{border-style:dashed;opacity:.55;cursor:default}
+.pu-slot.ready{border-color:var(--gr);box-shadow:0 0 0 1px color-mix(in srgb,var(--gr) 35%,transparent)}
+.pu-slot.active{border-color:var(--cy);animation:p 1s infinite}
+.pu-slot.cooldown,.pu-slot.locked{opacity:.65}
+.pu-slot.sel{outline:2px solid var(--cy);outline-offset:1px}
+.pu-ico{font-size:22px;line-height:1}.pu-name{font-size:9px;line-height:1.1;text-align:center;overflow-wrap:anywhere;max-width:100%;padding:0 1px}
+.pu-time{position:absolute;top:2px;right:4px;font-size:10px;font-weight:800;color:var(--muted)}
+.pu-fill{position:absolute;left:0;right:0;bottom:0;height:100%;background:color-mix(in srgb,var(--text) 14%,transparent);transform-origin:bottom;pointer-events:none}
+.pu-detail{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:10px;padding:10px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border)}
+.pu-detail p{margin:2px 0 4px;font-size:13px}.pu-detail small{display:block;color:var(--muted)}.pu-detail .pu-why{color:var(--alert-text);margin-top:3px}
+.pu-detail .btn{flex-shrink:0;min-width:96px}
+.pu-hint{margin:8px 0 0;font-size:12px;color:var(--muted)}
+.pu-panel .warn{font-size:13px}
+@media(max-width:479px){.pu-slots{gap:4px}.pu-slot{min-height:58px}.pu-ico{font-size:20px}.pu-name{font-size:8px}.pu-detail{flex-direction:column;align-items:stretch}.pu-detail .btn{width:100%}}
+@media(max-width:359px){.pu-panel{padding:8px}.pu-name{display:none}}
+
+/* map markers */
+.pu-div{background:none;border:0}
+.pu-pickup{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;background:#0b1320;border:2px solid;animation:pu-glow 1.6s ease-in-out infinite}
+.pu-pickup.pu-c{border-color:#22d3ee;color:#22d3ee;--glow:#22d3ee}.pu-pickup.pu-h{border-color:#ff2d4a;color:#ff2d4a;--glow:#ff2d4a}
+@keyframes pu-glow{0%,100%{box-shadow:0 0 4px 1px var(--glow)}50%{box-shadow:0 0 16px 5px var(--glow)}}
+.pu-blip{width:30px;height:30px;border-radius:50%;border:2px solid;animation:pu-ping 1.2s ease-out infinite}
+.pu-blip.cy{border-color:#22d3ee;background:rgba(34,211,238,.25)}.pu-blip.red{border-color:#ff2d4a;background:rgba(255,45,74,.25)}
+@keyframes pu-ping{0%{transform:scale(.5);opacity:1}100%{transform:scale(1.4);opacity:.2}}
+.pu-areaicon{font-size:18px;text-align:center;line-height:28px;text-shadow:0 0 6px #000}
+@media(prefers-reduced-motion:reduce){.pu-pickup,.pu-blip,.pu-slot.active,.gps-pill.wait i{animation:none}.pu-chip i{transition:none}}
+
+/* How to Play: Power-Ups section */
+.pu-how{margin-top:34px}.pu-how h2{margin:0 0 6px}.pu-how .lead{margin-top:0}
+.pu-how-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;margin:16px 0}
+.pu-how-steps>div{padding:14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border)}
+.pu-how-steps b{display:block;margin-bottom:4px}.pu-how-steps p{margin:0;font-size:14px;color:var(--public-muted)}
+.pu-teams{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0}
+.pu-team{padding:14px;border-radius:14px;border:1px solid var(--border);border-top-width:4px;background:var(--surface-2)}
+.pu-team.civ{border-top-color:var(--cy)}.pu-team.hau{border-top-color:var(--red)}
+.pu-team h3{margin:0 0 10px}.pu-team ul{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.pu-team li{display:grid;grid-template-columns:34px minmax(0,1fr);gap:8px;align-items:start}
+.pu-team li>span{font-size:24px;line-height:1.1}.pu-team li b{display:block}.pu-team li p{margin:2px 0;font-size:14px;color:var(--public-muted)}
+.pu-team li em{font-style:normal;font-size:12px;font-weight:700;color:var(--cy)}.pu-team.hau li em{color:var(--red)}
+.pu-rules{margin:12px 0;padding:14px 18px;border-radius:12px;background:var(--alert-bg);color:var(--alert-text)}.pu-rules li{margin:5px 0;font-size:14px}
+@media(max-width:720px){.pu-teams{grid-template-columns:minmax(0,1fr)}}
