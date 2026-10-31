@@ -22,8 +22,8 @@ export default function App(){
  return <ThemeCtx.Provider value={{theme,toggleTheme}}><Ctx.Provider value={user}>
   <header className="nav"><Link to="/" className="logo">HAUNTERS</Link>
    <button className="menu-toggle" aria-label="Toggle navigation" aria-expanded={menu} onClick={()=>setMenu(!menu)}>☰</button>
-   <nav className={menu?'open':''}>{nav.map(([p,t])=><NavLink key={p} to={p} end>{t}</NavLink>)}<div className="mobile-menu-account">{user?<><Link className="mobile-menu-action" to="/dashboard">Dashboard</Link><button className="mobile-menu-action" onClick={()=>{setMenu(false);signOut(auth);}}>Logout</button></>:<Link className="mobile-menu-action login" to="/login">Login</Link>}</div></nav>
-   <div className="nav-actions"><ThemeToggle/>{user?<><Link className="btn sm" to="/dashboard">Play Now</Link> <button className="btn sm ghost" onClick={()=>signOut(auth)}>Logout</button></>:<Link className="btn sm ghost" to="/login">Login</Link>}</div>
+   <nav className={menu?'open':''}>{nav.map(([p,t])=><NavLink key={p} to={p} end>{t}</NavLink>)}<div className="mobile-menu-account">{user?<><Link className="mobile-menu-action" to="/dashboard">Dashboard</Link><Link className="mobile-menu-action" to="/account">Profile</Link><button className="mobile-menu-action" onClick={()=>{setMenu(false);signOut(auth);}}>Logout</button></>:<Link className="mobile-menu-action login" to="/login">Login</Link>}</div></nav>
+   <div className="nav-actions"><ThemeToggle/>{user?<><Link className="btn sm" to="/dashboard">Play Now</Link> <Link className="btn sm ghost" to="/account">Profile</Link> <button className="btn sm ghost" onClick={()=>signOut(auth)}>Logout</button></>:<Link className="btn sm ghost" to="/login">Login</Link>}</div>
    <div className={`mobile-nav-tools${menu?' open':''}`}><ThemeToggle mobile/></div></header>
   {!configured&&<div className="warn">Firebase is not configured. Copy .env.example to .env and fill in your Firebase web config.</div>}
   <main className={inGame?'game-main':''}><Suspense fallback={<p className="c">Loading…</p>}><Routes>

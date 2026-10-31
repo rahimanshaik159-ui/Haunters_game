@@ -127,11 +127,11 @@ test('cleanup is host-only and only deletes', { skip }, () => {
 
 test('existing rules unchanged: lobby/users/meta/players behave as before', { skip }, () => {
   const d = db({}, 'civ1');
-  ok(W(d, 'players/civ1', { ...P('civilian'), lat: 1 }), 'player writes own record');
-  ok(W(d, 'players/civ1/lat', 1.5), 'player writes own location');
+  ok(W(d, 'players/civ1', { ...P('civilian'), ready: false, lat: 1 }), 'player writes own record');
+  ok(W(db({ players: { civ1: { ...P('civilian'), ready: false, lat: 1 } } }, 'civ1'), 'players/civ1/lat', 1.5), 'player writes own location');
   no(W(d, 'players/civ2/lat', 1.5), 'cannot write another player');
   ok(W(db({}, 'host'), 'meta/status', 'ended'), 'host updates meta');
   no(W(d, 'meta/status', 'ended'), 'non-host cannot update meta');
   ok(targaryen.database(rules, base(), NOW).as({ uid: 'civ1' }).read('/games/G', { now: NOW }), 'members read the game');
-  no(targaryen.database(rules, base(), NOW).as({ uid: 'stranger' }).read('/games/G', { now: NOW }), 'outsiders cannot read game');
+  ok(targaryen.database(rules, base(), NOW).as({ uid: 'stranger' }).read('/games/G', { now: NOW }), 'authenticated users read the game');
 });

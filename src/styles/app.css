@@ -14,6 +14,7 @@ a{color:var(--cy)}main{max-width:1000px;margin:0 auto;padding:16px;padding-botto
 .dashboard-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:12px 0 24px}.active-game-status{color:var(--muted);font-size:13px}
 input,select{width:100%;padding:12px;margin:6px 0 12px;background:var(--surface-2);color:var(--tx);border:1px solid var(--input-border);border-radius:10px;font-size:16px}
 label{font-size:14px;color:var(--mu)}.hero{text-align:center;padding:48px 0;background:radial-gradient(circle at 50% 0,#4a0d1a,transparent 70%)}
+.leaderboard-table{width:100%;table-layout:fixed;border-collapse:collapse}.leaderboard-table th,.leaderboard-table td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--border)}.leaderboard-table th:first-child,.leaderboard-table td:first-child{width:42px}.leaderboard-table th:not(:first-child),.leaderboard-table td:not(:first-child){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profile-player-name{font-size:18px;font-weight:700;margin:8px 0 12px;overflow-wrap:anywhere}
 .hero h1{font:italic 900 clamp(48px,14vw,110px) Impact,sans-serif;margin:0;text-shadow:0 0 30px var(--red)}
 .warn,.err{background:var(--alert-bg);color:var(--alert-text);padding:10px 16px;border-radius:8px;margin:8px 0}.ok{color:var(--gr)}.c{text-align:center}
 .ad{background:var(--ad-bg);border:1px dashed var(--ad-border);color:var(--mu);text-align:center;padding:24px;margin:16px 0;border-radius:8px;font-size:13px}

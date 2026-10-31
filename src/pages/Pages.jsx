@@ -1,12 +1,21 @@
 import {useEffect,useRef,useState} from 'react';import {Link,useNavigate,useSearchParams} from 'react-router-dom';
 import {createUserWithEmailAndPassword,signInWithEmailAndPassword,sendEmailVerification,sendPasswordResetEmail,updateProfile,deleteUser} from 'firebase/auth';
 import {ref,get,set,onValue,query,limitToLast} from 'firebase/database';
-import {doc,setDoc,collection,query as fq,orderBy,limit,getDocs} from 'firebase/firestore';
+import {doc,setDoc,collection,query as fq,orderBy,limit,getDocs,getDoc} from 'firebase/firestore';
 import {MapContainer,TileLayer,Circle,Marker,useMapEvents,useMap} from 'react-leaflet';
 import L from 'leaflet';import {auth,db,fs} from '../services/firebase';import {useUser} from '../App.jsx';
 import {rid,sha,elapsed} from '../services/gameplay';import {cfg} from '../config';import Ad from '../components/Ad.jsx';import PowerUpsGuide from '../components/PowerUpsGuide.jsx';
 L.Icon.Default.mergeOptions({iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',shadowUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png'});
 const err=e=>(e?.code||e?.message||String(e)).replace('auth/','').replace(/-/g,' ');
+const PLAYER_NAME_MIN=3,PLAYER_NAME_MAX=20;
+const normalizePlayerName=value=>String(value??'').trim();
+const validatePlayerName=value=>{
+ const name=normalizePlayerName(value);
+ if(!name)return 'Player name is required.';
+ if(name.length<PLAYER_NAME_MIN)return `Player name must be at least ${PLAYER_NAME_MIN} characters.`;
+ if(name.length>PLAYER_NAME_MAX)return `Player name must be ${PLAYER_NAME_MAX} characters or fewer.`;
+ return '';
+};
 export function Home(){const u=useUser();const items=[['⌖','Real World Map','Play in your own city'],['♧','Team Based','Hunt together, survive together'],['◷','Zone Shrinks','Keep moving to stay safe'],['⌁','Live Tracking','See the game unfold live'],['✦','Power-ups','Use smart advantages']];return <>
  <section className="hero"><div className="hero-art"/><div className="hero-copy"><p className="eyebrow">REAL WORLD LOCATION BASED GAME</p><h1>HAUNTERS</h1><p className="tagline">HUNT OR SURVIVE</p><p className="hero-subtitle">A real-world multiplayer survival experience.</p><div className="hero-actions"><Link className="btn" to={u?'/dashboard':'/login'}>Play Now</Link><Link className="btn ghost" to="/how-to-play">▶&nbsp; How To Play</Link></div></div></section><div className="feature-strip">{items.map(([i,t,d])=><div key={t}><b>{i}</b><strong>{t}</strong><span>{d}</span></div>)}</div><Ad/>
  </>;}
@@ -37,12 +46,13 @@ export const NotFound=()=><div className="c"><h1>404</h1><p>You wandered out of 
 export function Login(){const nv=useNavigate(),u=useUser();const [reg,setReg]=useState(false),[m,setM]=useState('');
  useEffect(()=>{if(u)nv('/dashboard');},[u]);
  const go=async e=>{e.preventDefault();const f=new FormData(e.target),em=f.get('e'),pw=f.get('p');setM('');
-  try{if(reg){const c=await createUserWithEmailAndPassword(auth,em,pw);await updateProfile(c.user,{displayName:f.get('n')});
-    await setDoc(doc(fs,'profiles',c.user.uid),{name:f.get('n'),xp:0,games:0,wins:0});await sendEmailVerification(c.user);}
+  try{if(reg){const playerName=normalizePlayerName(f.get('n')),validation=validatePlayerName(playerName);if(validation)return setM(validation);
+    const c=await createUserWithEmailAndPassword(auth,em,pw);await updateProfile(c.user,{displayName:playerName});
+    await setDoc(doc(fs,'profiles',c.user.uid),{name:playerName,playerName,xp:0,games:0,wins:0});await sendEmailVerification(c.user);}
    else await signInWithEmailAndPassword(auth,em,pw);}catch(x){setM(err(x));}};
  const reset=async()=>{const em=document.querySelector('[name=e]').value;try{await sendPasswordResetEmail(auth,em);setM('Reset email sent (if the account exists).');}catch(x){setM(err(x));}};
  return <form className="card" onSubmit={go} style={{maxWidth:420,margin:'20px auto'}}><h2>{reg?'Create account':'Login'}</h2>
-  {reg&&<><label>Username</label><input name="n" required minLength={3} maxLength={20}/></>}
+  {reg&&<><label htmlFor="player-name">Player Name</label><input id="player-name" name="n" placeholder="Enter your player name" required minLength={PLAYER_NAME_MIN} maxLength={PLAYER_NAME_MAX}/></>}
   <label>Email</label><input name="e" type="email" required/><label>Password</label><input name="p" type="password" required minLength={6}/>
   {m&&<p className="err">{m}</p>}<button className="btn" style={{width:'100%'}}>{reg?'Register':'Login'}</button>
   <p className="c"><a href="#" onClick={e=>{e.preventDefault();setReg(!reg);}}>{reg?'Have an account? Login':'New? Register'}</a>{!reg&&<> · <a href="#" onClick={e=>{e.preventDefault();reset();}}>Forgot password</a></>}</p></form>;}
@@ -147,10 +157,27 @@ export function Join(){const u=useUser(),nv=useNavigate(),[sp]=useSearchParams()
  return <form className="card" onSubmit={go} style={{maxWidth:420,margin:'20px auto'}}><h2>Join Game</h2><label>Game ID</label>
   <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} maxLength={5} placeholder="HN7K3" required/>
   <label>Password (if private)</label><input value={pw} onChange={e=>setPw(e.target.value)}/>{m&&<p className="err">{m}</p>}<button className="btn g">Join</button></form>;}
-export function Leaderboard(){const [r,setR]=useState(null);
- useEffect(()=>{if(!fs)return setR([]);getDocs(fq(collection(fs,'profiles'),orderBy('xp','desc'),limit(20))).then(s=>setR(s.docs.map(d=>d.data()))).catch(()=>setR([]));},[]);
- return <><h1>Leaderboard</h1>{r===null?<p>Loading…</p>:!r.length?<p>No ranked players yet.</p>:<table style={{width:'100%'}}><tbody><tr><th>#</th><th>Player</th><th>XP</th><th>Games</th><th>Wins</th></tr>
-  {r.map((p,i)=><tr key={i}><td>{i+1}</td><td>{p.name}</td><td>{p.xp}</td><td>{p.games}</td><td>{p.wins}</td></tr>)}</tbody></table>}<Ad/></>;}
-export function Account(){const u=useUser();return <div className="card"><h1>Account</h1><p>{u.email}</p>
- <button className="btn ghost" onClick={()=>sendPasswordResetEmail(auth,u.email)}>Send password reset</button>
- <p>To delete your account:</p><button className="btn" onClick={()=>confirm('Delete account permanently?')&&deleteUser(u).catch(x=>alert(err(x)+' — log in again and retry.'))}>Delete account</button></div>;}
+export function Leaderboard(){const [r,setR]=useState(null),[m,setM]=useState('');
+ useEffect(()=>{if(!fs)return setR([]);
+  getDocs(fq(collection(fs,'profiles'),orderBy('xp','desc'),limit(20)))
+   .then(s=>{const seen=new Set();setR(s.docs.reduce((rows,d)=>{if(seen.has(d.id))return rows;seen.add(d.id);const p=d.data();rows.push({uid:d.id,...p,displayName:normalizePlayerName(p.playerName||p.name)||'Unknown Player'});return rows;},[]));})
+   .catch(x=>{setM(err(x));setR([]);});
+ },[]);
+ return <><h1>Leaderboard</h1>{r===null?<p>Loading…</p>:m?<p className="err" role="alert">Unable to load the leaderboard: {m}</p>:!r.length?<p>No ranked players yet.</p>:<table className="leaderboard-table"><tbody><tr><th>#</th><th>Player</th><th>XP</th><th>Games</th><th>Wins</th></tr>
+  {r.map((p,i)=><tr key={p.uid}><td>{i+1}</td><td title={p.displayName}>{p.displayName}</td><td>{p.xp??0}</td><td>{p.games??0}</td><td>{p.wins??0}</td></tr>)}</tbody></table>}<Ad/></>;}
+export function Account(){const u=useUser(),[profile,setProfile]=useState(null),[playerName,setPlayerName]=useState(''),[editing,setEditing]=useState(false),[saving,setSaving]=useState(false),[m,setM]=useState(''),[ok,setOk]=useState('');
+ useEffect(()=>{let active=true;if(!fs)return;
+  getDoc(doc(fs,'profiles',u.uid)).then(s=>{if(!active)return;const data=s.exists()?s.data():{};setProfile(data);setPlayerName(normalizePlayerName(data.playerName||data.name));})
+   .catch(x=>{if(active)setM(`Unable to load your profile: ${err(x)}`);});
+  return()=>{active=false;};
+ },[u.uid]);
+ const save=async()=>{const name=normalizePlayerName(playerName),validation=validatePlayerName(name);setM('');setOk('');if(validation)return setM(validation);setSaving(true);
+  try{await setDoc(doc(fs,'profiles',u.uid),{name,playerName},{merge:true});await updateProfile(u,{displayName:name});setProfile(p=>({...p,name,playerName}));setPlayerName(name);setEditing(false);setOk('Player name updated.');}
+  catch(x){setM(err(x));}finally{setSaving(false);}
+ };
+ const cancel=()=>{setPlayerName(normalizePlayerName(profile?.playerName||profile?.name));setEditing(false);setM('');};
+ return <div className="card"><h1>Account</h1><p>{u.email}</p><section aria-labelledby="player-name-heading"><h2 id="player-name-heading">Player Name</h2>
+  {editing?<><label htmlFor="profile-player-name">Player Name</label><input id="profile-player-name" value={playerName} onChange={e=>setPlayerName(e.target.value)} minLength={PLAYER_NAME_MIN} maxLength={PLAYER_NAME_MAX} placeholder="Enter your player name" autoFocus/><div><button type="button" className="btn g" onClick={save} disabled={saving}>{saving?'Saving…':'Save'}</button>{' '}<button type="button" className="btn ghost" onClick={cancel} disabled={saving}>Cancel</button></div></>:<><p className="profile-player-name">{normalizePlayerName(profile?.playerName||profile?.name)||'Unknown Player'}</p><button type="button" className="btn ghost" onClick={()=>{setM('');setOk('');setEditing(true);}}>Edit</button></>}
+  {m&&<p className="err" role="alert">{m}</p>}{ok&&<p className="ok" role="status">{ok}</p>}</section>
+  <button className="btn ghost" onClick={()=>sendPasswordResetEmail(auth,u.email)}>Send password reset</button>
+  <p>To delete your account:</p><button className="btn" onClick={()=>confirm('Delete account permanently?')&&deleteUser(u).catch(x=>alert(err(x)+' — log in again and retry.'))}>Delete account</button></div>;}
