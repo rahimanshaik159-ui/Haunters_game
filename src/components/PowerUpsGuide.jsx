@@ -36,7 +36,7 @@ export default function PowerUpsGuide() {
       </div>
       <ul className="pu-rules">
         <li><b>Your GPS is never altered.</b> Speed boosts can’t make you physically faster. While Adrenaline Rush or Blood Rush is active you take no safe-zone damage <i>while you are genuinely moving</i> (about {C.sprintMinSpeed} m/s or more) and your nearby-enemy warning radius grows to {C.sprintProximityRadius} m.</li>
-        <li><b>The KILL rules do not change.</b> No ability extends the 5 m range, shortens the 3-second hold or relaxes the GPS accuracy and freshness checks.</li>
+        <li><b>The KILL rules do not change.</b> No ability extends the {cfg.game.killRange} m range, shortens the 3-second hold or relaxes the GPS accuracy and freshness checks.</li>
         <li><b>Energy Shield</b> absorbs one completed Haunter elimination hit, then breaks. It never blocks safe-zone damage and expires if unused.</li>
         <li><b>Ghost Clock</b> hides you from Haunter Vision, Sonar Pulse and Blood Trail, but not from the normal proximity rules. <b>Safe Bubble</b> protects Civilians inside it from Sonar Pulse, Blood Trail and Fear Wave, but not from Haunter Vision or the KILL.</li>
         <li><b>EMP Blast</b> switches off Haunter detection abilities for Haunters inside the radius. <b>Fear Wave</b> locks the abilities of frightened Civilians while they stay inside it.</li>

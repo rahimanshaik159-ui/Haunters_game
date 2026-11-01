@@ -58,7 +58,7 @@ Until you do, the game plays exactly as before, but the power-up panel shows a "
 
 **What software cannot fix.** A reading like "±187 m" is a Wi-Fi / mobile-network location returned by Android, not satellite GPS. It happens indoors, with *Precise location* off (Android 12+ lets users grant only "Approximate"), with Google Location Accuracy / High-accuracy mode off, with battery-saver, or when the WebView app lacks the runtime permission. The website can only report it truthfully and tell the player how to improve it. See `docs/ANDROID_WEBVIEW_CHECKLIST.md`.
 
-**KILL is unchanged:** 5 m range (distance + both accuracies), 3 s hold, accuracy <= 10 m, fix age <= 10 s, re-validation during the hold and again inside the Firebase transaction. (Note: `confirmTicks` in `cfg.game` was already unused before this update; continuous re-validation is what actually protects the hold.)
+**KILL is unchanged:** 10 m range (distance + both accuracies), 3 s hold, accuracy <= 10 m, fix age <= 10 s, re-validation during the hold and again inside the Firebase transaction. The exact boundary allows only a 1 micrometre numeric tolerance for geodesic floating-point rounding; 10.0000001 m remains out of range. (Note: `confirmTicks` in `cfg.game` was already unused before this update; continuous re-validation is what actually protects the hold.)
 
 ## 3. Power-ups
 Six per team (see the in-app *How to Play -> Power-Ups* section; numbers are generated from `src/services/powerupConfig.js`).

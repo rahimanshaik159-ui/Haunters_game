@@ -9,7 +9,7 @@ Prerequisite: publish `firebase/database.rules.json` in the Firebase console. Us
 - [ ] Turn Location services off mid-game -> "GPS unavailable / signal lost"; turn on -> recovers (Retry if needed).
 - [ ] Lock the screen 30 s, return -> "stale/lost" then recovers.
 - [ ] Other players' positions update about every 3 s; "Synced ... ago" advances; airplane mode shows "Offline".
-- [ ] KILL: 5 m range, 3 s hold, refused when accuracy > 10 m or fix stale (unchanged behaviour).
+- [ ] KILL: 10 m range, 3 s hold, refused when accuracy > 10 m or fix stale.
 ## Pickups
 - [ ] After Start Game, cyan orbs appear for Civilians, red for Haunters (3 each), none in inventory.
 - [ ] Civilians never see red orbs and vice-versa; wrong team cannot collect.

@@ -29,7 +29,7 @@ test('How to Play lists all 12 abilities, pickup/inventory/respawn/restriction e
   const html = h(U.PowerUpsGuide, {});
   for (const n of ['Ghost Clock', 'Adrenaline Rush', 'Energy Shield', 'Hologram Decoy', 'EMP Blast', 'Safe Bubble', 'Haunter Vision', 'Blood Rush', 'Sonar Pulse', 'Fear Wave', 'Shadow Clone', 'Blood Trail'])
     assert.ok(html.includes(n), n);
-  for (const t of ['Find them', 'Collect them', 'Carry up to six', 'Activate', 'They respawn', 'Civilian powers', 'Haunter powers', 'KILL rules do not change', '5 m']) assert.ok(html.includes(t), t);
+  for (const t of ['Find them', 'Collect them', 'Carry up to six', 'Activate', 'They respawn', 'Civilian powers', 'Haunter powers', 'KILL rules do not change', '10 m']) assert.ok(html.includes(t), t);
   assert.ok(html.includes('8s') && html.includes('10s') && html.includes('6s') && html.includes('5s'), 'durations shown');
 });
 

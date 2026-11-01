@@ -3,6 +3,7 @@ import { ref, update, onValue } from 'firebase/database';
 import { db } from '../services/firebase';
 import { cfg } from '../config';
 import { createGeoTracker, createLocationSync } from '../services/geoTracker.js';
+import { serverNow, startServerClock } from '../services/powerupActions.js';
 
 // One GPS tracker per mounted Play screen. The watcher is created once and only torn down on unmount
 // (it is NOT restarted by role/state changes). `onFix` always sees the latest closure via a ref.
@@ -17,15 +18,23 @@ export function useGps({ gameId, uid, onFix }) {
 
   useEffect(() => {
     const G = cfg.game;
+    startServerClock();
     const syncer = createLocationSync({
-      throttleMs: G.posThrottleMs,
+      throttleMs: Math.min(G.posThrottleMs, 1000),
       onState: setSync,
-      write: (v) => update(ref(db, `games/${gameId}/players/${uid}`), { lat: v.lat, lng: v.lng, acc: v.acc, ts: Date.now(), fixAt: v.fixAt }),
+      write: (v) => {
+        const path = `games/${gameId}/players/${uid}`;
+        const payload = { lat: v.lat, lng: v.lng, acc: v.acc, ts: serverNow(), fixAt: v.fixAt };
+        return update(ref(db, path), payload);
+      },
     });
     const tracker = createGeoTracker({
       opts: { ...cfg.gps, timeoutMs: G.geoTimeoutMs, maximumAgeMs: G.geoMaximumAgeMs, goodAccM: G.killMaxAcc, fairAccM: G.maxAcc },
       onStatus: setGps,
-      onFix: (v) => { posR.current = v; setPos(v); onFixR.current?.(v); syncer.push(v); },
+      onFix: (v) => {
+        const fix = { ...v, fixAt: v.fixAt + (serverNow() - Date.now()) };
+        posR.current = fix; setPos(fix); onFixR.current?.(fix); syncer.push(fix);
+      },
     });
     trackerR.current = tracker;
     tracker.start();

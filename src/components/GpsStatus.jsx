@@ -15,7 +15,7 @@ function GpsStatus({ gps, sync, online, now, onRetry }) {
   const [label, tone] = LABEL[gps.state] || LABEL.acquiring;
   const age = gps.lastFixAt ? Math.max(0, now - gps.lastFixAt) : null;
   const stale = age != null && age > cfg.gps.staleAfterMs && gps.state !== 'lost';
-  const quality = gps.acc == null ? null : gps.acc <= cfg.game.killMaxAcc ? 'Good' : gps.acc <= cfg.game.maxAcc ? 'Fair' : 'Poor';
+  const quality = gps.acc == null ? null : gps.acc <= cfg.gps.goodAccM ? 'Good' : gps.acc <= cfg.gps.fairAccM ? 'Fair' : 'Poor';
   const slow = gps.state === 'acquiring' && now - mounted.current > 30000;
   const canRetry = ['denied', 'lost', 'unavailable', 'stale'].includes(gps.state) || stale || slow;
   let syncText = 'Waiting to sync';

@@ -7,7 +7,8 @@ import {dist,bearing,dir,elapsed,zoneAt,nextShrink,fmt,route} from '../services/
 import Ad from '../components/Ad.jsx';
 import {useGps} from '../hooks/useGps';import {usePowerUps} from '../hooks/usePowerUps';
 import GpsStatus from '../components/GpsStatus.jsx';import PowerUpPanel from '../components/PowerUpPanel.jsx';import PowerUpMapLayers from '../components/PowerUpMapLayers.jsx';
-import {absorbShieldHit,cleanupPowerups} from '../services/powerupActions';
+import {absorbShieldHit,cleanupPowerups,serverNow} from '../services/powerupActions';
+import {isKillEligible,killCandidates} from '../services/killEligibility.js';
 const G=cfg.game;
 function Follow({p}){const m=useMap();useEffect(()=>{if(p)m.setView([p.lat,p.lng],m.getZoom());},[!!p]);return null;}
 export default function Room(){
@@ -73,7 +74,7 @@ const cancel = async () => {
   }});
  useEffect(()=>{
   const t=setInterval(()=>{
-   const n=Date.now();
+   const n=serverNow();
    setNow(n);
 
    const gg=gR.current,mm=gg.meta,p=posR.current;
@@ -118,17 +119,27 @@ const cancel = async () => {
  },[id,u.uid]);
  const sec=elapsed(m,now),z=zoneAt(m,sec),zn=zoneAt(m,sec+nextShrink(m,sec)+1),civ=me.role==='civilian';
  const pu=usePowerUps({id,g,u,me,pos,posR,now,graceRef:graceR});
- const validLocation=(p,n)=>Boolean(p&&Number.isFinite(p.lat)&&p.lat>=-90&&p.lat<=90&&Number.isFinite(p.lng)&&p.lng>=-180&&p.lng<=180&&Number.isFinite(p.acc)&&p.acc>=0&&p.acc<=G.killMaxAcc&&Number.isFinite(p.fixAt)&&n-p.fixAt>=0&&n-p.fixAt<=G.locationMaxAgeMs);
- const candidates=Object.entries(g.players).filter(([k,o])=>k!==u.uid&&o.role==='civilian'&&o.alive&&validLocation(o,now)&&validLocation(pos,now)&&dist(pos,o)+pos.acc+o.acc<=G.killRange);
- const target=candidates.find(([k])=>k===targetId)||candidates[0];
- const others=Object.entries(g.players).filter(([k,o])=>k!==u.uid&&o.alive&&o.pos!==0&&o.ts&&now-o.ts<15000&&pos&&dist(pos,o)<=pu.alertRadius&&o.role===(civ?'haunter':'civilian')&&(civ||o.acc<=G.maxAcc*2));
+ const killNow=serverNow();
+ const killOptions={range:G.killRange,maxAccuracy:G.killMaxAcc,maxAge:G.killLocationMaxAgeMs};
+ const candidates=killCandidates(g.players,u.uid,{...pos,role:me.role,alive:me.alive},killNow,killOptions);
+ const killStabilityR=useRef(new Map());
+ const candidateIds=new Set(candidates.map(([k])=>k));
+ for(const key of killStabilityR.current.keys())if(!candidateIds.has(key))killStabilityR.current.delete(key);
+ const stableCandidates=candidates.filter(([key])=>{
+  const state=killStabilityR.current.get(key)||{count:0,lastSample:null};
+  const sample=`${pos?.fixAt||''}:${g.players[key]?.fixAt||''}`;
+  if(state.lastSample!==sample){state.count+=1;state.lastSample=sample;killStabilityR.current.set(key,state);}
+  return state.count>=2;
+ });
+ const target=stableCandidates.find(([k])=>k===targetId)||stableCandidates[0];
+ const others=civ?Object.entries(g.players).filter(([k,o])=>k!==u.uid&&o.alive&&o.pos!==0&&o.ts&&now-o.ts<15000&&pos&&dist(pos,o)<=pu.alertRadius&&o.role==='haunter'):candidates;
  const alive=Object.values(g.players);const cl=alive.filter(x=>x.role==='civilian'&&x.alive).length;
  const danger=civ&&others[0];
  useEffect(()=>{if(danger&&pos&&Date.now()-lastRt.current>20000){lastRt.current=Date.now();route(pos,m.center).then(setRt);}if(!danger)setRt(null);},[!!danger]);
  const releaseKill=()=>{if(holdTimer.current)clearTimeout(holdTimer.current);if(holdTicker.current)clearInterval(holdTicker.current);holdTimer.current=null;holdTicker.current=null;setHold({active:false,progress:0,message:hold.active?'Hold cancelled.':''});};
- const validTarget=(id=targetId)=>{const p=posR.current,latest=gR.current.players?.[id],n=Date.now();return latest?.role==='civilian'&&latest.alive&&validLocation(p,n)&&validLocation(latest,n)&&dist(p,latest)+p.acc+latest.acc<=G.killRange;};
- const finishKill=async(idToKill)=>{if(!validTarget(idToKill)){releaseKill();setKillNotice('Cancelled: target location is no longer reliable.');return;}if(await absorbShieldHit({id,victimUid:idToKill,effects:gR.current.powerups?.effects})){releaseKill();setKillNotice('Target’s Energy Shield absorbed the hit and broke.');return;}const result=await runTransaction(ref(db,`games/${id}/players/${idToKill}`),p=>{if(!p||p.role!=='civilian'||p.alive!==true)return;const n=Date.now();if(!validLocation(p,n)||!validLocation(posR.current,n)||dist(posR.current,p)+posR.current.acc+p.acc>G.killRange)return;return {...p,alive:false,health:0,by:u.uid};});releaseKill();if(result.committed){setKillNotice('Civilian eliminated.');navigator.vibrate?.([80,40,80]);}else setKillNotice('Cancelled: target changed before elimination.');};
- const startKill=()=>{if(!target||hold.active)return;const idToKill=target[0];setTargetId(idToKill);if(!validTarget(idToKill))return setKillNotice('GPS accuracy is too low for a 5 m elimination.');setKillNotice('');const started=Date.now();setHold({active:true,progress:0,message:'Holding… 3 seconds'});holdTicker.current=setInterval(()=>{const progress=Math.min(1,(Date.now()-started)/G.killHoldMs);if(!validTarget(idToKill)){releaseKill();setKillNotice('Cancelled: target moved or GPS became stale.');return;}setHold({active:true,progress,message:`Holding… ${Math.max(0,Math.ceil((G.killHoldMs-(Date.now()-started))/1000))} seconds`});},50);holdTimer.current=setTimeout(()=>finishKill(idToKill),G.killHoldMs);};
+ const validTarget=(id=targetId)=>{const p=posR.current,latest=gR.current.players?.[id],n=serverNow();return isKillEligible({attackerId:u.uid,attacker:{...p,role:me.role,alive:me.alive},targetId:id,target:latest,now:n,...killOptions});};
+ const finishKill=async(idToKill)=>{if(!validTarget(idToKill)){releaseKill();setKillNotice('Cancelled: target location is no longer reliable.');return;}if(await absorbShieldHit({id,victimUid:idToKill,effects:gR.current.powerups?.effects})){releaseKill();setKillNotice('Target’s Energy Shield absorbed the hit and broke.');return;}const result=await runTransaction(ref(db,`games/${id}/players/${idToKill}`),p=>{if(!p||p.role!=='civilian'||p.alive!==true)return;const n=serverNow();if(!isKillEligible({attackerId:u.uid,attacker:{...posR.current,role:me.role,alive:me.alive},targetId:idToKill,target:p,now:n,...killOptions}))return;return {...p,alive:false,health:0,by:u.uid};});releaseKill();if(result.committed){setKillNotice('Civilian eliminated.');navigator.vibrate?.([80,40,80]);}else setKillNotice('Cancelled: target changed before elimination.');};
+ const startKill=()=>{if(!target||hold.active)return;const idToKill=target[0];setTargetId(idToKill);if(!validTarget(idToKill))return setKillNotice(`GPS accuracy is too low for a ${G.killRange} m elimination.`);setKillNotice('');const started=Date.now();setHold({active:true,progress:0,message:'Holding… 3 seconds'});holdTicker.current=setInterval(()=>{const progress=Math.min(1,(Date.now()-started)/G.killHoldMs);if(!validTarget(idToKill)){releaseKill();setKillNotice('Cancelled: target moved or GPS became stale.');return;}setHold({active:true,progress,message:`Holding… ${Math.max(0,Math.ceil((G.killHoldMs-(Date.now()-started))/1000))} seconds`});},50);holdTimer.current=setTimeout(()=>finishKill(idToKill),G.killHoldMs);};
  useEffect(()=>{const stop=()=>releaseKill();document.addEventListener('visibilitychange',stop);return()=>{document.removeEventListener('visibilitychange',stop);releaseKill();};},[]);
  if(!me.alive)return <div className="c card"><h2>You were eliminated 👻</h2><p>{me.health<=0?'Health depleted or caught.':''} Watch the game end or <Link to="/dashboard">leave</Link>.</p><p>Time left {fmt(Math.max(0,m.duration*60-sec))}</p></div>;
  const toC=pos?bearing(pos,m.center):0;
@@ -153,7 +164,7 @@ const cancel = async () => {
   Exit Game
 </button>
 </div>
-  {!civ&&<div className="kill-panel card"><h3>Hold to eliminate</h3>{candidates.length?<><div className="kill-targets">{candidates.map(([k,o])=><button type="button" className={target?.[0]===k?'selected':''} key={k} onClick={()=>{releaseKill();setTargetId(k);}}>{o.name||'Civilian'} · ~{Math.round(dist(pos,o))} m</button>)}</div><p>{target?.[1]?.name||'Civilian'} is within range. Hold for 3 seconds.</p><button type="button" className="kill-button" onPointerDown={startKill} onPointerUp={releaseKill} onPointerCancel={releaseKill} onPointerLeave={releaseKill} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!e.repeat){e.preventDefault();startKill();}}} onKeyUp={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();releaseKill();}}} disabled={!target||hold.active} aria-label={`Hold to eliminate ${target?.[1]?.name||'Civilian'}`}>KILL<span className="kill-progress" style={{transform:`scaleX(${hold.progress})`}}/></button>{hold.message&&<p className="kill-feedback">{hold.message}</p>}{killNotice&&<p className="kill-feedback">{killNotice}</p>}</>:<><p>No Civilian within 5 m.</p><p className="gps-note">Requires fresh GPS fixes with accuracy within {G.killMaxAcc} m. Phone GPS may not reliably distinguish 5 m.</p><button type="button" className="kill-button" disabled>KILL</button></>}</div>}
+  {!civ&&<div className="kill-panel card"><h3>Hold to eliminate</h3>{stableCandidates.length?<><div className="kill-targets">{stableCandidates.map(([k,o])=><button type="button" className={target?.[0]===k?'selected':''} key={k} onClick={()=>{releaseKill();setTargetId(k);}}>{o.name||'Civilian'} · ~{Math.round(dist(pos,o))} m</button>)}</div><p>{target?.[1]?.name||'Civilian'} is within range. Hold for 3 seconds.</p><button type="button" className="kill-button" onPointerDown={startKill} onPointerUp={releaseKill} onPointerCancel={releaseKill} onPointerLeave={releaseKill} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!e.repeat){e.preventDefault();startKill();}}} onKeyUp={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();releaseKill();}}} disabled={!target||hold.active} aria-label={`Hold to eliminate ${target?.[1]?.name||'Civilian'}`}>KILL<span className="kill-progress" style={{transform:`scaleX(${hold.progress})`}}/></button>{hold.message&&<p className="kill-feedback">{hold.message}</p>}{killNotice&&<p className="kill-feedback">{killNotice}</p>}</>:<><p>No Civilian within {G.killRange} m.</p><p className="gps-note">Requires two consecutive fresh GPS validations with accuracy within {G.killMaxAcc} m and fixes no older than {G.killLocationMaxAgeMs/1000} seconds.</p><button type="button" className="kill-button" disabled>KILL</button></>}</div>}
   <div className="bar"><i style={{width:(me.health??100)+'%'}}/></div><small>Health {me.health??100}%</small>
   {err&&<p className="warn">{err}</p>}
   {danger&&<p className="alert">⚠ Haunter within ~{Math.round(dist(pos,danger[1]))} m (±{Math.round(pos.acc)} m). {rt?'Route to safe-zone centre shown (estimate).':`Move ${dir((toC))} toward the zone centre (estimate only).`}</p>}

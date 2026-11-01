@@ -11,8 +11,8 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
-    allowedHosts: [
-      'polyester-ridge-cells-macintosh.trycloudflare.com'
-    ]
+ allowedHosts: [
+  'balanced-remedies-persian-dense.trycloudflare.com'
+]
   }
 });
