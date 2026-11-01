@@ -139,6 +139,15 @@ if (!skip) {
 
   test('SIMULTANEOUS collection by two Civilians: exactly one wins; Haunter standing there gets nothing; pickup disappears for everyone', { skip }, async () => {
     const c1 = pk().c1; const spot = { lat: c1.lat, lng: c1.lng };
+    seed('games/G/powerups/pickups/c2/lat', offset(spot, 300, 0).lat);
+    seed('games/G/powerups/pickups/c2/lng', offset(spot, 300, 0).lng);
+    seed('games/G/powerups/pickups/c3/lat', offset(spot, -300, 0).lat);
+    seed('games/G/powerups/pickups/c3/lng', offset(spot, -300, 0).lng);
+    for (const slot of ['h1', 'h2', 'h3']) {
+      const far = offset(spot, 500 + Number(slot.slice(1)) * 20, 0);
+      seed(`games/G/powerups/pickups/${slot}/lat`, far.lat);
+      seed(`games/G/powerups/pickups/${slot}/lng`, far.lng);
+    }
     pin('civ1', offset(spot, 1, 0)); pin('civ2', offset(spot, 0, 1)); pin('hau1', spot);
     await ticks(1);
     assert.equal(get('games/G/powerups/inventory'), null, 'one in-range tick is not enough (consecutive-fix confirmation)');
@@ -163,6 +172,11 @@ if (!skip) {
 
   test('Haunter collects a Haunter pickup; Civilians cannot', { skip }, async () => {
     const h1 = pk().h1; pin('hau1', { lat: h1.lat, lng: h1.lng }); pin('civ2', { lat: h1.lat, lng: h1.lng });
+    for (const slot of ['h2', 'h3']) {
+      const far = offset(h1, 300 + Number(slot.slice(1)) * 20, 0);
+      seed(`games/G/powerups/pickups/${slot}/lat`, far.lat);
+      seed(`games/G/powerups/pickups/${slot}/lng`, far.lng);
+    }
     await ticks(4);
     assert.equal(pk().h1.claimedBy, 'hau1'); assert.equal(Object.keys(get('games/G/powerups/inventory/hau1') || {}).length, 1);
     assert.equal(get('games/G/powerups/inventory/civ2') == null || !Object.values(get('games/G/powerups/inventory/civ2')).some((i) => TYPES_BY_TEAM.haunter.includes(i.type)), true);
@@ -277,9 +291,14 @@ if (!skip) {
   });
 
   test('eliminated player: cannot collect or activate (client AND rules reject)', { skip }, async () => {
-    seed('games/G/powerups', null); await ticks(2);
+    seed('games/G/powerups', null); IDS.forEach((uid) => { pin(uid, null); REG[uid].posR.current = null; }); await ticks(2);
     const c = Object.values(pk()).find((v) => v.team === 'civilian'); const slot = c.id.split('-')[0];
-    seed('games/G/players/civ2/alive', false); pin('civ2', { lat: c.lat, lng: c.lng }); await ticks(5);
+    Object.entries(pk()).filter(([k, v]) => k !== slot && v.team === 'civilian').forEach(([k]) => {
+      const far = offset(c, 300 + Number(k.slice(1)) * 20, 0);
+      seed(`games/G/powerups/pickups/${k}/lat`, far.lat);
+      seed(`games/G/powerups/pickups/${k}/lng`, far.lng);
+    });
+    seed('games/G/players/civ2/alive', false); await ticks(1); pin('civ2', { lat: c.lat, lng: c.lng }); await ticks(5);
     assert.equal(pk()[slot].state, 'active');
     give('civ2', 'ghostClock'); await ticks(1); assert.equal(REG.civ2.pu.status('s0').reason, 'eliminated');
     await assert.rejects(() => mods.civ2.A.activateAbility({ id: 'G', uid: 'civ2', invKey: 's0', type: 'ghostClock', pos: null, cfg: { shieldMaxMs: 60000 } }), /PERMISSION_DENIED/);
@@ -287,7 +306,7 @@ if (!skip) {
   });
 
   test('reconnect: inventory/effects/cooldowns are restored from Firebase; interrupted delivery is completed exactly once', { skip }, async () => {
-    seed('games/G/powerups', null); await ticks(2);
+    seed('games/G/powerups', null); IDS.forEach((uid) => { pin(uid, null); REG[uid].posR.current = null; }); await ticks(2);
     const c = pk().c2; // simulate: civ1 claimed (transaction committed) but crashed before delivery
     seed('games/G/powerups/pickups/c2', { ...c, state: 'claimed', claimedBy: 'civ1', claimedAt: T, respawnAt: T + 20000 });
     await ticks(3);

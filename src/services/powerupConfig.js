@@ -6,7 +6,7 @@ export const POWERUP_DEFAULTS = {
   civilianSlots: 3,          // active Civilian pickups on the map
   haunterSlots: 3,           // active Haunter pickups on the map
   inventoryCapacity: 6,      // inventory slots per player (hard-capped at 6 by the data model + rules)
-  collectRadius: 5,          // metres
+  collectRadius: 180,        // metres
   collectMaxAcc: 15,         // metres; reported GPS accuracy must be at least this good to collect
   collectConfirmTicks: 2,    // consecutive 1 s ticks with DISTINCT fresh fixes inside the radius
   respawnDelayMs: 20000,     // after a pickup is collected

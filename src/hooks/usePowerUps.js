@@ -48,7 +48,7 @@ export function usePowerUps({ id, g, u, me, pos, posR, now, graceRef }) {
   useEffect(() => {
     const cur = gR.current, m = cur.meta, self = cur.players?.[uid], pws = cur.powerups || {};
     if (!self?.alive || m.status !== 'playing') return;
-    const nd = Date.now(), ns = A.serverNow(), p = posR.current;
+    const nd = A.serverNow(), ns = nd, p = posR.current;
 
     // 1) maintenance: host first, any other player only when the host is late (host loss / reconnect fallback)
     const sec = elapsed(m, nd), zoneR = P.spawnRadius(zoneAt(m, sec), zoneAt(m, sec + C.pickupExpiryMs / 1000));
@@ -77,7 +77,7 @@ export function usePowerUps({ id, g, u, me, pos, posR, now, graceRef }) {
       if (ev.reason === 'inventory-full') say('Inventory full: use an ability to free a slot.');
       if (ev.ok && t.n >= C.collectConfirmTicks && !claiming.current) {
         claiming.current = true;
-        const okNow = (cand) => P.evaluateCollection({ pickup: cand, pos: posR.current, nowDevice: Date.now(), nowServer: A.serverNow(), role: self.role, alive: true, playing: true, invFull: false, cfg: C, maxAgeMs: G.locationMaxAgeMs }).ok;
+        const okNow = (cand) => P.evaluateCollection({ pickup: cand, pos: posR.current, nowDevice: A.serverNow(), nowServer: A.serverNow(), role: self.role, alive: gR.current.players?.[uid]?.alive === true, playing: gR.current.meta?.status === 'playing', invFull: false, cfg: C, maxAgeMs: G.locationMaxAgeMs }).ok;
         A.claimPickup({ id, slot, uid, role: self.role, cfg: C, okNow })
           .then(async (won) => {
             if (!won) return say('Too late: another player collected it first.');
@@ -114,7 +114,7 @@ export function usePowerUps({ id, g, u, me, pos, posR, now, graceRef }) {
   const status = (invKey) => {
     const item = inventory.find((i) => i && i.key === invKey);
     if (!item) return { ok: false, reason: 'empty' };
-    return P.canActivate({ type: item.type, item, role, alive: me.alive, playing, nowServer: sNow, nowDevice: Date.now(), effects, cooldowns: pw.cooldowns, uid,
+    return P.canActivate({ type: item.type, item, role, alive: me.alive, playing, nowServer: sNow, nowDevice: A.serverNow(), effects, cooldowns: pw.cooldowns, uid,
       pos: posR.current, feared, jammed, maxAcc: G.maxAcc, maxAgeMs: G.locationMaxAgeMs });
   };
 

@@ -22,7 +22,7 @@ test('catalogue: 6 civilian + 6 haunter, spec durations/radii, cooldown >= durat
   assert.equal(d('shadowClone').durationMs, 10000); assert.equal(d('bloodTrail').durationMs, 10000);
   for (const [k, a] of Object.entries(ABILITIES)) if (k !== 'energyShield') assert.ok(a.cooldownMs >= a.durationMs, k + ' cooldown covers duration (no overlap stacking)');
   assert.equal(ABILITIES.energyShield.durationMs, C.shieldMaxMs, 'shield lifetime is bounded');
-  assert.equal(C.collectRadius, 5); assert.equal(C.respawnDelayMs, 20000); assert.equal(C.pickupExpiryMs, 60000);
+  assert.equal(C.collectRadius, 180); assert.equal(C.respawnDelayMs, 20000); assert.equal(C.pickupExpiryMs, 60000);
   assert.equal(C.civilianSlots, 3); assert.equal(C.haunterSlots, 3); assert.equal(C.inventoryCapacity, 6);
 });
 
@@ -106,12 +106,23 @@ test('collection rules: role, alive, match, gps freshness, accuracy, radius, inv
   const pk = { id: 'p', team: 'civilian', type: 'ghostClock', state: 'active', ...center, expiresAt: NOW + 30000 };
   const base = { pickup: pk, pos: here(offsetLatLng(center, 90, 3)), nowDevice: NOW, nowServer: NOW, role: 'civilian', alive: true, playing: true, invFull: false };
   assert.equal(P.evaluateCollection(base).ok, true);
+  for (const metres of [5, 15, 50, 100, 150, 179, 180]) {
+    assert.equal(P.evaluateCollection({ ...base, pos: here(offsetLatLng(center, 90, metres)) }).ok, true, `${metres} m is collectible`);
+  }
+  for (const metres of [180.1, 200]) {
+    assert.equal(P.evaluateCollection({ ...base, pos: here(offsetLatLng(center, 90, metres)) }).reason, 'too-far', `${metres} m is too far`);
+  }
   assert.equal(P.evaluateCollection({ ...base, role: 'haunter' }).reason, 'wrong-role');
   assert.equal(P.evaluateCollection({ ...base, alive: false }).reason, 'eliminated');
   assert.equal(P.evaluateCollection({ ...base, playing: false }).reason, 'match-not-active');
   assert.equal(P.evaluateCollection({ ...base, pos: { ...base.pos, fixAt: NOW - 20000 } }).reason, 'stale-gps');
   assert.equal(P.evaluateCollection({ ...base, pos: { ...base.pos, acc: 187 } }).reason, 'poor-accuracy');
-  assert.equal(P.evaluateCollection({ ...base, pos: here(offsetLatLng(center, 90, 8)) }).reason, 'too-far');
+  const haunterPickup = { ...pk, team: 'haunter', type: 'haunterVision' };
+  assert.equal(P.evaluateCollection({ ...base, pickup: haunterPickup, role: 'haunter' }).ok, true, 'Haunters use the same collection radius');
+  for (const role of ['civilian', 'haunter']) {
+    const pickup = { ...pk, team: role, type: role === 'civilian' ? 'ghostClock' : 'haunterVision' };
+    assert.equal(P.evaluateCollection({ ...base, pickup, role, pos: here(offsetLatLng(center, 90, 180)) }).ok, true, `${role} collection is enabled`);
+  }
   assert.equal(P.evaluateCollection({ ...base, invFull: true }).reason, 'inventory-full');
   assert.equal(P.evaluateCollection({ ...base, nowServer: NOW + 31000 }).reason, 'unavailable');
 });
@@ -154,6 +165,17 @@ test('positional abilities need a fresh accurate fix; non-positional do not', ()
   assert.equal(act('empBlast', { pos: { ...pos0, fixAt: NOW - 30000 } }).reason, 'stale-gps');
   assert.equal(act('empBlast', { pos: { ...pos0, acc: 187 } }).reason, 'poor-accuracy');
   assert.equal(act('ghostClock', { pos: null }).ok, true); assert.equal(act('energyShield', { pos: null }).ok, true);
+});
+
+test('server-time-normalized GPS fixes remain valid across device clock offsets', () => {
+  const serverNow = NOW + 12000;
+  const normalizedFix = { ...pos0, fixAt: serverNow - 1000 };
+  assert.equal(P.canActivate({ type: 'bloodTrail', item: { type: 'bloodTrail' }, role: 'haunter', alive: true, playing: true,
+    nowServer: serverNow, nowDevice: serverNow, effects: {}, cooldowns: {}, uid: 'H', pos: normalizedFix,
+    feared: false, jammed: false, maxAcc: 30, maxAgeMs: 10000 }).ok, true);
+  assert.equal(P.canActivate({ type: 'bloodTrail', item: { type: 'bloodTrail' }, role: 'haunter', alive: true, playing: true,
+    nowServer: serverNow, nowDevice: serverNow, effects: {}, cooldowns: {}, uid: 'H',
+    pos: { ...normalizedFix, fixAt: serverNow - 11000 }, feared: false, jammed: false, maxAcc: 30, maxAgeMs: 10000 }).reason, 'stale-gps');
 });
 
 test('Ghost Clock hides from Vision, Sonar, Trail but NOT from base proximity/KILL candidates', () => {

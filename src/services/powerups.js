@@ -4,6 +4,7 @@ import { distM, offsetLatLng, randomPointInCircle, validLatLng } from './geomath
 
 export const INV_KEYS = ['s0', 's1', 's2', 's3', 's4', 's5'];
 const FRESH_PLAYER_MS = 15000; // same freshness the existing proximity alerts use (o.ts within 15 s)
+const COLLECTION_BOUNDARY_TOLERANCE_M = 1e-6;
 
 /* ---------------- slots / pickups ---------------- */
 export const spawnRadius = (zoneNow, zoneAtExpiry) => Math.min(zoneNow, zoneAtExpiry);
@@ -77,7 +78,7 @@ export function evaluateCollection({ pickup, pos, nowDevice, nowServer, role, al
   if (age < 0 || age > maxAgeMs) return { ok: false, reason: 'stale-gps' };
   if (!(pos.acc <= cfg.collectMaxAcc)) return { ok: false, reason: 'poor-accuracy' };
   const d = distM(pos, pickup);
-  if (d > cfg.collectRadius) return { ok: false, reason: 'too-far', distance: d };
+  if (d > cfg.collectRadius + COLLECTION_BOUNDARY_TOLERANCE_M) return { ok: false, reason: 'too-far', distance: d };
   if (invFull) return { ok: false, reason: 'inventory-full', distance: d };
   return { ok: true, distance: d };
 }

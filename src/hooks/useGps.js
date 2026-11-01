@@ -30,10 +30,19 @@ export function useGps({ gameId, uid, onFix }) {
     });
     const tracker = createGeoTracker({
       opts: { ...cfg.gps, timeoutMs: G.geoTimeoutMs, maximumAgeMs: G.geoMaximumAgeMs, goodAccM: G.killMaxAcc, fairAccM: G.maxAcc },
-      onStatus: setGps,
+      onStatus: (status) => setGps({
+        ...status,
+        lastFixAt: Number.isFinite(status.lastFixAt)
+          ? status.lastFixAt + (serverNow() - Date.now())
+          : status.lastFixAt,
+      }),
       onFix: (v) => {
         const fix = { ...v, fixAt: v.fixAt + (serverNow() - Date.now()) };
-        posR.current = fix; setPos(fix); onFixR.current?.(fix); syncer.push(fix);
+        posR.current = fix;
+        setPos(fix);
+        setGps((current) => ({ ...current, lastFixAt: fix.fixAt }));
+        onFixR.current?.(fix);
+        syncer.push(fix);
       },
     });
     trackerR.current = tracker;

@@ -33,7 +33,7 @@ test('How to Play lists all 12 abilities, pickup/inventory/respawn/restriction e
   assert.ok(html.includes('8s') && html.includes('10s') && html.includes('6s') && html.includes('5s'), 'durations shown');
 });
 
-const basePU = (o = {}) => ({ cfg: { inventoryCapacity: 6, collectRadius: 5 }, role: 'civilian', sNow: NOW, inventory: Array(6).fill(null), cooldowns: {}, mine: [], selected: null, setSelected() {}, busy: false,
+const basePU = (o = {}) => ({ cfg: { inventoryCapacity: 6, collectRadius: 180 }, role: 'civilian', sNow: NOW, inventory: Array(6).fill(null), cooldowns: {}, mine: [], selected: null, setSelected() {}, busy: false,
   myPickups: [], problem: '', notice: '', grace: false, feared: false, jammed: false, protectedByBubble: false, pinged: false, status: () => ({ ok: true }), activate() {}, ...o });
 const item = (i, type) => ({ key: 's' + i, type, pid: 'p' + i, src: 'c1', at: NOW });
 
