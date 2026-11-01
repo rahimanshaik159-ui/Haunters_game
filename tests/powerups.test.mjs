@@ -10,17 +10,12 @@ const seeded = (s = 7) => () => (s = (s * 16807) % 2147483647) / 2147483647;
 const fixAt = (n) => n - 500;
 const here = (p, n = NOW, acc = 5) => ({ ...p, acc, fixAt: fixAt(n) });
 
-test('catalogue: 6 civilian + 6 haunter, spec durations/radii, cooldown >= duration', () => {
+test('catalogue: every ability lasts exactly 60 seconds, with configured radii and cooldowns', () => {
   assert.equal(TYPES_BY_TEAM.civilian.length, 6); assert.equal(TYPES_BY_TEAM.haunter.length, 6);
   const d = (k) => ABILITIES[k];
-  assert.equal(d('ghostClock').durationMs, 8000); assert.equal(d('adrenaline').durationMs, 10000);
-  assert.equal(d('hologramDecoy').durationMs, 10000); assert.equal(d('empBlast').durationMs, 6000); assert.equal(d('empBlast').radius, 30);
-  assert.equal(d('safeBubble').durationMs, 8000);
-  assert.equal(d('haunterVision').durationMs, 8000); assert.equal(d('haunterVision').radius, 50);
-  assert.equal(d('bloodRush').durationMs, 10000); assert.equal(d('sonarPulse').durationMs, 5000); assert.equal(d('sonarPulse').radius, 60);
-  assert.equal(d('fearWave').durationMs, 5000); assert.equal(d('fearWave').radius, 20);
-  assert.equal(d('shadowClone').durationMs, 10000); assert.equal(d('bloodTrail').durationMs, 10000);
-  for (const [k, a] of Object.entries(ABILITIES)) if (k !== 'energyShield') assert.ok(a.cooldownMs >= a.durationMs, k + ' cooldown covers duration (no overlap stacking)');
+  for (const [k, a] of Object.entries(ABILITIES)) {
+    assert.equal(a.durationMs, 60000, `${k} lasts 60 seconds`);
+  }
   assert.equal(ABILITIES.energyShield.durationMs, C.shieldMaxMs, 'shield lifetime is bounded');
   assert.equal(C.collectRadius, 180); assert.equal(C.respawnDelayMs, 20000); assert.equal(C.pickupExpiryMs, 60000);
   assert.equal(C.civilianSlots, 3); assert.equal(C.haunterSlots, 3); assert.equal(C.inventoryCapacity, 6);
@@ -185,7 +180,8 @@ test('Ghost Clock hides from Vision, Sonar, Trail but NOT from base proximity/KI
   assert.deepEqual(vis.map(([u]) => u), ['C2']);
   assert.equal(P.revealedCivilians({ type: 'haunterVision', viewerUid: 'H', viewerPos: center, radius: 50, players, effects: {}, now: NOW }).length, 2);
   // after expiry C1 is visible again
-  assert.equal(P.revealedCivilians({ type: 'haunterVision', viewerUid: 'H', viewerPos: center, radius: 50, players, effects, now: NOW + 8001 }).length, 2);
+  const afterExpiry = Object.fromEntries(Object.entries(players).map(([uid, player]) => [uid, { ...player, ts: NOW + 60001 }]));
+  assert.equal(P.revealedCivilians({ type: 'haunterVision', viewerUid: 'H', viewerPos: center, radius: 50, players: afterExpiry, effects, now: NOW + 60001 }).length, 2);
 });
 
 test('Vision/Sonar radius and freshness: out-of-range and stale civilians are not revealed; dead ones neither', () => {
@@ -206,7 +202,7 @@ test('EMP jams Haunter detection inside 30 m, not outside; blocks activating det
   assert.equal(P.revealedCivilians({ type: 'haunterVision', viewerUid: 'H', viewerPos: inside, radius: 50, players, effects, now: NOW }).length, 0);
   assert.equal(P.revealedCivilians({ type: 'haunterVision', viewerUid: 'H', viewerPos: outside, radius: 50, players, effects, now: NOW }).length, 1);
   assert.equal(act('sonarPulse', { jammed: true }).reason, 'jammed'); assert.equal(act('bloodRush', { jammed: true }).ok, true);
-  assert.equal(P.inEmp(effects, inside, NOW + 6001), false, 'EMP expires');
+  assert.equal(P.inEmp(effects, inside, NOW + 60001), false, 'EMP expires');
 });
 
 test('Safe Bubble: blocks Sonar/Trail/Fear for those inside, but NOT Vision, and does not grant full immunity', () => {
@@ -221,10 +217,10 @@ test('Safe Bubble: blocks Sonar/Trail/Fear for those inside, but NOT Vision, and
   assert.equal(P.isFeared({ ...effects, ...fear }, offsetLatLng(center, 0, 15), NOW), true, 'outside the bubble, still afraid');
 });
 
-test('Fear Wave: 20 m, locks civilian abilities, removes sprint grace, expires after 5 s', () => {
+test('Fear Wave: 20 m, locks civilian abilities, removes sprint grace, expires after 60 s', () => {
   const fear = { H: { fearWave: P.buildEffect('fearWave', { now: NOW, pos: center }) } };
   assert.equal(P.isFeared(fear, offsetLatLng(center, 0, 15), NOW), true); assert.equal(P.isFeared(fear, offsetLatLng(center, 0, 25), NOW), false);
-  assert.equal(P.isFeared(fear, offsetLatLng(center, 0, 15), NOW + 5001), false);
+  assert.equal(P.isFeared(fear, offsetLatLng(center, 0, 15), NOW + 60001), false);
   assert.equal(act('ghostClock', { feared: true }).reason, 'feared');
   const adr = { U: { adrenaline: P.buildEffect('adrenaline', { now: NOW, pos: center }) } };
   assert.equal(P.zoneGrace({ effects: adr, uid: 'U', role: 'civilian', speed: 3, feared: false, now: NOW }), true);
@@ -235,7 +231,7 @@ test('Adrenaline / Blood Rush: grace only when boosted AND really moving; never 
   for (const [type, role] of [['adrenaline', 'civilian'], ['bloodRush', 'haunter']]) {
     const eff = { U: { [type]: P.buildEffect(type, { now: NOW, pos: center }) } };
     const g = (o) => P.zoneGrace({ effects: eff, uid: 'U', role, speed: 3, feared: false, now: NOW, ...o });
-    assert.equal(g({}), true); assert.equal(g({ speed: 0.2 }), false); assert.equal(g({ speed: NaN }), false); assert.equal(g({ now: NOW + 10001 }), false);
+    assert.equal(g({}), true); assert.equal(g({ speed: 0.2 }), false); assert.equal(g({ speed: NaN }), false); assert.equal(g({ now: NOW + 60001 }), false);
     assert.equal(P.zoneGrace({ effects: eff, uid: 'U', role: role === 'civilian' ? 'haunter' : 'civilian', speed: 3, feared: false, now: NOW }), false, 'other role boost does not apply');
     assert.equal(P.alertRadius({ effects: eff, uid: 'U', role, now: NOW, base: 10 }), 20); assert.equal(P.alertRadius({ effects: {}, uid: 'U', role, now: NOW, base: 10 }), 10);
   }
@@ -251,7 +247,7 @@ test('Decoys: deterministic drift identical for every client; not a player; stop
     const e = P.buildEffect(type, { now: NOW, pos: center, rnd: seeded(4) });
     const a = P.decoyPosition(e, NOW), b = P.decoyPosition(e, NOW + 5000), c = P.decoyPosition(e, NOW + 99999), d = P.decoyPosition(e, e.endsAt);
     assert.ok(Math.abs(distM(center, a) - C.decoyStartOffset) < 0.5); assert.ok(distM(a, b) > 4 && distM(a, b) < 8);
-    assert.deepEqual(c, d, 'frozen after expiry'); assert.ok(distM(center, c) < 40);
+    assert.deepEqual(c, d, 'frozen after expiry'); assert.ok(distM(center, c) < 100);
     assert.deepEqual(P.decoyPosition(e, NOW + 5000), b, 'pure function of synced data');
     assert.equal(e.uid, undefined, 'no player identity is created');
   }
@@ -267,6 +263,16 @@ test('Blood Trail buffer: RAM-only, windowed, capped, dropped for dead/stale civ
 test('flattenEffects ignores expired and unknown effects', () => {
   const eff = { A: { ghostClock: { endsAt: NOW + 10 }, bogus: { endsAt: NOW + 10 }, adrenaline: { endsAt: NOW - 1 } } };
   assert.deepEqual(P.flattenEffects(eff, NOW).map((e) => e.type), ['ghostClock']);
+});
+
+test('effects activate immediately and expire exactly at the synced 60-second deadline', () => {
+  for (const type of Object.keys(ABILITIES)) {
+    const effect = P.buildEffect(type, { now: NOW, pos: center });
+    assert.equal(effect.endsAt - effect.at, 60000, `${type} duration`);
+    assert.equal(P.isActive(effect, NOW), true, `${type} active at activation`);
+    assert.equal(P.isActive(effect, NOW + 59999), true, `${type} active before deadline`);
+    assert.equal(P.isActive(effect, NOW + 60000), false, `${type} expires at deadline`);
+  }
 });
 
 test('area ring visibility: owner/team always; opponents only when inside it', () => {

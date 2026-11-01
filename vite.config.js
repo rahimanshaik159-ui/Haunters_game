@@ -12,7 +12,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
  allowedHosts: [
-  'balanced-remedies-persian-dense.trycloudflare.com'
+  'brought-triple-under-translations.trycloudflare.com'
 ]
   }
 });

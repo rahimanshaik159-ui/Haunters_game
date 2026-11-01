@@ -1,6 +1,8 @@
 // Power-up configuration. Every number here is intentionally configurable.
 // Kept free of import.meta/DOM so it can be unit-tested in Node.
 
+export const POWERUP_ACTIVE_DURATION_MS = 60_000;
+
 export const POWERUP_DEFAULTS = {
   // --- map pickups (independently configurable per team) ---
   civilianSlots: 3,          // active Civilian pickups on the map
@@ -21,37 +23,37 @@ export const POWERUP_DEFAULTS = {
   sprintProximityRadius: 20, // metres, early-warning radius while boosted (base is cfg.game.proximity)
   decoyDriftMps: 1.2,
   decoyStartOffset: 12,
-  shieldMaxMs: 60000,        // an unused shield expires (no permanent invulnerability)
+  shieldMaxMs: POWERUP_ACTIVE_DURATION_MS, // an unused shield expires (no permanent invulnerability)
   maxClockSkewMs: 5000,
 };
 
 // kind: how the effect is anchored. "self" = follows caster, "area" = fixed circle at activation, "decoy" = drifting marker
 export const ABILITIES = {
   // ---------------- Civilian ----------------
-  ghostClock:    { team: 'civilian', name: 'Ghost Clock',    icon: '👻', durationMs: 8000,  cooldownMs: 25000, kind: 'self',
+  ghostClock:    { team: 'civilian', name: 'Ghost Clock',    icon: '👻', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 25000, kind: 'self',
     desc: 'Invisible to Haunter Vision, Sonar Pulse and Blood Trail.' },
-  adrenaline:    { team: 'civilian', name: 'Adrenaline Rush', icon: '⚡', durationMs: 10000, cooldownMs: 30000, kind: 'self',
+  adrenaline:    { team: 'civilian', name: 'Adrenaline Rush', icon: '⚡', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 30000, kind: 'self',
     desc: 'Sprint window: no zone damage while you really move, and a 20 m Haunter warning radius.' },
-  energyShield:  { team: 'civilian', name: 'Energy Shield',  icon: '🛡️', durationMs: 60000, cooldownMs: 30000, kind: 'self',
+  energyShield:  { team: 'civilian', name: 'Energy Shield',  icon: '🛡️', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 30000, kind: 'self',
     desc: 'Absorbs one Haunter elimination hit, then breaks. Expires if unused.' },
-  hologramDecoy: { team: 'civilian', name: 'Hologram Decoy', icon: '🔮', durationMs: 10000, cooldownMs: 25000, kind: 'decoy',
+  hologramDecoy: { team: 'civilian', name: 'Hologram Decoy', icon: '🔮', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 25000, kind: 'decoy',
     desc: 'A drifting fake signal that Haunters see on the map.' },
-  empBlast:      { team: 'civilian', name: 'EMP Blast',      icon: '💥', durationMs: 6000,  cooldownMs: 30000, kind: 'area', radius: 30,
+  empBlast:      { team: 'civilian', name: 'EMP Blast',      icon: '💥', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 30000, kind: 'area', radius: 30,
     desc: 'Jams Haunter detection abilities inside 30 m.' },
-  safeBubble:    { team: 'civilian', name: 'Safe Bubble',    icon: '🫧', durationMs: 8000,  cooldownMs: 25000, kind: 'area', radius: 12,
+  safeBubble:    { team: 'civilian', name: 'Safe Bubble',    icon: '🫧', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 25000, kind: 'area', radius: 12,
     desc: 'Civilians inside resist Sonar, Blood Trail and Fear Wave.' },
   // ---------------- Haunter ----------------
-  haunterVision: { team: 'haunter', name: 'Haunter Vision',  icon: '👁️', durationMs: 8000,  cooldownMs: 25000, kind: 'self', radius: 50,
+  haunterVision: { team: 'haunter', name: 'Haunter Vision',  icon: '👁️', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 25000, kind: 'self', radius: 50,
     desc: 'Reveals Civilians within 50 m of you.' },
-  bloodRush:     { team: 'haunter', name: 'Blood Rush',      icon: '🩸', durationMs: 10000, cooldownMs: 30000, kind: 'self',
+  bloodRush:     { team: 'haunter', name: 'Blood Rush',      icon: '🩸', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 30000, kind: 'self',
     desc: 'Sprint window: no zone damage while you really move, and a 20 m Civilian alert radius.' },
-  sonarPulse:    { team: 'haunter', name: 'Sonar Pulse',     icon: '📡', durationMs: 5000,  cooldownMs: 20000, kind: 'area', radius: 60,
+  sonarPulse:    { team: 'haunter', name: 'Sonar Pulse',     icon: '📡', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 20000, kind: 'area', radius: 60,
     desc: 'Pulse that reveals Civilians within 60 m.' },
-  fearWave:      { team: 'haunter', name: 'Fear Wave',       icon: '😱', durationMs: 5000,  cooldownMs: 25000, kind: 'area', radius: 20,
+  fearWave:      { team: 'haunter', name: 'Fear Wave',       icon: '😱', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 25000, kind: 'area', radius: 20,
     desc: 'Civilians within 20 m are frightened: abilities locked, sprint grace lost.' },
-  shadowClone:   { team: 'haunter', name: 'Shadow Clone',    icon: '🕷️', durationMs: 10000, cooldownMs: 25000, kind: 'decoy',
+  shadowClone:   { team: 'haunter', name: 'Shadow Clone',    icon: '🕷️', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 25000, kind: 'decoy',
     desc: 'A drifting fake Haunter signal that Civilians see on the map.' },
-  bloodTrail:    { team: 'haunter', name: 'Blood Trail',     icon: '🩸', durationMs: 10000, cooldownMs: 25000, kind: 'self', radius: 50,
+  bloodTrail:    { team: 'haunter', name: 'Blood Trail',     icon: '🩸', durationMs: POWERUP_ACTIVE_DURATION_MS, cooldownMs: 25000, kind: 'self', radius: 50,
     desc: 'Highlights the last ~20 s of movement of Civilians within 50 m.' },
 };
 

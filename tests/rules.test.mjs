@@ -91,10 +91,10 @@ test('delivery + inventory: exactly once, max 6 slots, cannot be forged', { skip
 
 test('activation: needs the item, role, cooldown, no stacking, bounded duration; consumes item atomically', { skip }, () => {
   const inv = { powerups: { inventory: { civ1: { s2: { type: 'ghostClock', pid: 'a', src: 'c1', at: NOW } }, hau1: { s0: { type: 'sonarPulse', pid: 'b', src: 'h1', at: NOW } } } } };
-  const eff = (o = {}) => ({ type: 'ghostClock', team: 'civilian', at: NOW, endsAt: NOW + 8000, ...o });
+  const eff = (o = {}) => ({ type: 'ghostClock', team: 'civilian', at: NOW, endsAt: NOW + 60000, ...o });
   const act = (d, u, type, e, slot = 's2') => U(d, 'powerups', { [`inventory/${u}/${slot}`]: null, [`effects/${u}/${type}`]: e, [`cooldowns/${u}/${type}`]: NOW + 25000 });
   ok(act(db(inv, 'civ1'), 'civ1', 'ghostClock', eff()), 'valid activation');
-  ok(act(db(inv, 'hau1'), 'hau1', 'sonarPulse', eff({ type: 'sonarPulse', team: 'haunter', endsAt: NOW + 5000, lat: 17.4, lng: 78.4, r: 60 }), 's0'), 'haunter ability');
+  ok(act(db(inv, 'hau1'), 'hau1', 'sonarPulse', eff({ type: 'sonarPulse', team: 'haunter', lat: 17.4, lng: 78.4, r: 60 }), 's0'), 'haunter ability');
   no(act(db({}, 'civ1'), 'civ1', 'ghostClock', eff()), 'no item -> no effect');
   no(act(db(inv, 'civ1'), 'civ1', 'adrenaline', eff({ type: 'adrenaline' })), 'holding a different ability');
   no(act(db(inv, 'civ1'), 'civ1', 'ghostClock', eff({ team: 'haunter' })), 'team must equal role');
@@ -111,7 +111,7 @@ test('activation: needs the item, role, cooldown, no stacking, bounded duration;
 });
 
 test('Energy Shield: owner clears; any Haunter may break it (KILL absorption); nothing else', { skip }, () => {
-  const sh = { powerups: { effects: { civ1: { energyShield: { type: 'energyShield', team: 'civilian', at: NOW, endsAt: NOW + 60000 }, ghostClock: { type: 'ghostClock', team: 'civilian', at: NOW, endsAt: NOW + 8000 } } } } };
+  const sh = { powerups: { effects: { civ1: { energyShield: { type: 'energyShield', team: 'civilian', at: NOW, endsAt: NOW + 60000 }, ghostClock: { type: 'ghostClock', team: 'civilian', at: NOW, endsAt: NOW + 60000 } } } } };
   ok(W(db(sh, 'hau1'), 'powerups/effects/civ1/energyShield', null), 'Haunter breaks shield after absorbing a hit');
   no(W(db(sh, 'hau1'), 'powerups/effects/civ1/ghostClock', null), 'Haunter cannot strip other effects');
   no(W(db(sh, 'civ2'), 'powerups/effects/civ1/energyShield', null), 'another civilian cannot');

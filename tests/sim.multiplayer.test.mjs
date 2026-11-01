@@ -213,8 +213,8 @@ if (!skip) {
     test(`ability ${type}: activate -> synced effect with correct duration -> cooldown blocks reuse -> expires -> usable again`, { skip }, async () => {
       const uid = civOf(type) ? 'civ1' : 'hau1', other = civOf(type) ? 'hau1' : 'civ1';
       // fresh state for the actor
+      seed('games/G/powerups/effects', null);
       seed(`games/G/powerups/effects/${uid}`, null); seed(`games/G/powerups/cooldowns/${uid}`, null); seed(`games/G/powerups/inventory/${uid}`, null);
-      seed('games/G/powerups/effects/hau1', null);
       pin('civ1', center); pin('hau1', offset(center, 20, 0)); pin('civ2', offset(center, 0, 25));
       seed('games/G/players/civ1/alive', true);
       await ticks(1);
@@ -274,7 +274,7 @@ if (!skip) {
     assert.equal(REG.civ1.pu.feared, true); assert.equal(REG.civ2.pu.feared, false, 'out of range');
     give('civ1', 'ghostClock'); await ticks(1); assert.equal(REG.civ1.pu.status('s0').reason, 'feared'); await activate('civ1');
     assert.equal(effOf('civ1', 'ghostClock') ?? null, null, 'feared civilian cannot activate');
-    await ticks(6); assert.equal(REG.civ1.pu.feared, false, 'fear ends after 5 s');
+    await ticks(61); assert.equal(REG.civ1.pu.feared, false, 'fear ends after 60 s');
   });
 
   test('Energy Shield absorbs one completed KILL hit (via the real absorbShieldHit), then is gone; second hit is not absorbed', { skip }, async () => {

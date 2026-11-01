@@ -65,12 +65,12 @@ Six per team (see the in-app *How to Play -> Power-Ups* section; numbers are gen
 
 | Civilian | Haunter |
 |---|---|
-| Ghost Clock 8 s | Haunter Vision 8 s / 50 m |
-| Adrenaline Rush 10 s | Blood Rush 10 s |
+| Ghost Clock 60 s | Haunter Vision 60 s / 50 m |
+| Adrenaline Rush 60 s | Blood Rush 60 s |
 | Energy Shield (one hit, max 60 s) | Sonar Pulse 5 s / 60 m |
-| Hologram Decoy 10 s | Fear Wave 5 s / 20 m |
-| EMP Blast 6 s / 30 m | Shadow Clone 10 s |
-| Safe Bubble 8 s / 12 m | Blood Trail 10 s / 50 m |
+| Hologram Decoy 60 s | Fear Wave 60 s / 20 m |
+| EMP Blast 60 s / 30 m | Shadow Clone 60 s |
+| Safe Bubble 60 s / 12 m | Blood Trail 60 s / 50 m |
 
 Gameplay choices you should know about:
 - **Speed abilities cannot make anyone physically faster** and never touch GPS. While *Adrenaline Rush* / *Blood Rush* is active you take no safe-zone damage **only while your real measured speed is >= 1.5 m/s**, and your nearby-enemy alert radius grows from 10 m to 20 m. Fear Wave removes the grace.
@@ -78,7 +78,7 @@ Gameplay choices you should know about:
 - Decoys are map signals computed from synced data (origin, bearing, time). They are not players and are not KILL targets.
 - Blood Trail uses only a short in-memory buffer (~20 s) on the Haunter's device, filled from positions the client already receives, and only while a Haunter holds/uses Blood Trail. Nothing extra is stored in Firebase.
 
-Map pickups: 3 Civilian + 3 Haunter slots (configurable), collection radius 5 m, needs a fresh fix with accuracy <= 15 m and two consecutive distinct fixes in range, atomic claim by Firebase transaction, delivery into one of 6 inventory slots, respawn 20 s after collection, relocation 60 s after spawn if nobody takes it. All values: `POWERUP_DEFAULTS` in `src/services/powerupConfig.js`. Any player's client can respawn a slot if the host is late (host-loss fallback); a transaction guarantees no duplicates.
+Map pickups: 3 Civilian + 3 Haunter slots (configurable), collection radius 180 m, needs a fresh fix with accuracy <= 15 m and two consecutive distinct fixes in range, atomic claim by Firebase transaction, delivery into one of 6 inventory slots, respawn 20 s after collection, relocation 60 s after spawn if nobody takes it. All values: `POWERUP_DEFAULTS` in `src/services/powerupConfig.js`. Any player's client can respawn a slot if the host is late (host-loss fallback); a transaction guarantees no duplicates.
 
 ### Data model (`games/{id}/powerups`)
 `pickups/{c1..c3,h1..h3}` (one object per slot) · `inventory/{uid}/{s0..s5}` · `effects/{uid}/{abilityType}` · `cooldowns/{uid}/{abilityType}`. Times use the Firebase server clock offset. The host deletes the node after a match.

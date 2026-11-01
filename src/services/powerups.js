@@ -154,8 +154,7 @@ export function canActivate({ type, item, role, alive, playing, nowServer, effec
 
 export function buildEffect(type, { now, pos, rnd = Math.random, cfg = POWERUP_DEFAULTS }) {
   const a = ABILITIES[type];
-  const dur = type === 'energyShield' ? cfg.shieldMaxMs : a.durationMs;
-  const e = { type, team: a.team, at: now, endsAt: now + dur };
+  const e = { type, team: a.team, at: now, endsAt: now + a.durationMs };
   if (a.kind === 'area' || (a.kind === 'self' && a.radius)) { e.r = a.radius; }
   if (POSITIONAL.includes(type) && validLatLng(pos)) {
     if (a.kind === 'decoy') {
